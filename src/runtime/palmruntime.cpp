@@ -547,16 +547,24 @@ void PalmRuntime::finishConnect()
         if (block.isEmpty()) continue;   // no AppInfo (e.g. fake device) -> no-op
         const auto r = WildPalms::Runtime::reconcileCategories(block, desired);
         if (!r.updatedAppInfoBlock.isEmpty()) {
-            if (!m_device->writeAppBlock(db, r.updatedAppInfoBlock))
+            if (!m_device->writeAppBlock(db, r.updatedAppInfoBlock)) {
                 qWarning() << "[PalmRuntime] AppInfo write failed for" << db;
-            else
+                // Shakedown F8: reconciliation failures were console-only.
+                Q_EMIT logMessage(QStringLiteral(
+                    "Category write failed for %1 — category slots may be "
+                    "missing on the device").arg(db));
+            } else {
                 qDebug() << "[PalmRuntime] created" << r.bound.size()
                          << "category binding(s) on" << db;
+            }
         }
         if (!r.noFreeSlot.isEmpty()) {
             m_categoryNoFreeSlot.insert(db, r.noFreeSlot);
             qWarning() << "[PalmRuntime] no free category slot on" << db
                        << "for" << r.noFreeSlot;
+            Q_EMIT logMessage(QStringLiteral(
+                "Device table %1 has no free category slot for: %2")
+                    .arg(db, r.noFreeSlot.join(QStringLiteral(", "))));
         }
     }
 

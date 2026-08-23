@@ -81,6 +81,7 @@ private slots:
     void localFilesResetsMapping();
     void staleBindingResetsToLocalOnRebuild();
     void hintShownWhenAccountsHaveNoMatchingCollections();
+    void hintShownWhenAccountsNotYetConnected();
 };
 
 void TstTargetPickerPage::populatesDomainFilteredBindings()
@@ -191,6 +192,42 @@ void TstTargetPickerPage::hintShownWhenAccountsHaveNoMatchingCollections()
     auto *hint = contactsRow->findChild<QLabel*>(QStringLiteral("hint"));
     QVERIFY(hint);
     QVERIFY(!hint->isHidden());
+}
+
+// Shakedown F5: an account that has NOT connected used to suppress every
+// hint (zero collections ⇒ "no matching" never fired). The row must say
+// why only local files are offered.
+void TstTargetPickerPage::hintShownWhenAccountsNotYetConnected()
+{
+    auto s = seedState();
+    WizardAccount acc;
+    acc.id   = QStringLiteral("acc-1");
+    acc.kind = QStringLiteral("multiproto-dav");
+    acc.config.displayName = QStringLiteral("Fastmail");
+    acc.connected = false;          // connect failed / still in progress
+    s.accounts.append(acc);
+
+    auto conduits = WildPalms::Runtime::createStockConduits();
+    TargetPickerPage page(&s, &conduits);
+    page.initializePage();
+
+    for (const auto &pid : { QStringLiteral("calendar"),
+                              QStringLiteral("contacts"),
+                              QStringLiteral("memo"),
+                              QStringLiteral("todo") }) {
+        TargetPickerRow *row = nullptr;
+        for (auto *r : page.findChildren<TargetPickerRow*>())
+            if (r->pluginId() == pid) { row = r; break; }
+        QVERIFY(row);
+        auto *hint = row->findChild<QLabel*>(QStringLiteral("hint"));
+        QVERIFY(hint);
+        QVERIFY2(!hint->isHidden(),
+                 qPrintable(QStringLiteral("hint hidden for %1").arg(pid)));
+        QVERIFY(hint->text().contains(QStringLiteral("not connected"),
+                                      Qt::CaseInsensitive)
+                || hint->text().contains(QStringLiteral("connecting"),
+                                         Qt::CaseInsensitive));
+    }
 }
 
 WILDPALMS_QTEST_MAIN(TstTargetPickerPage)

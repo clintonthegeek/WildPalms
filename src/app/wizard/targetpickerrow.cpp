@@ -104,8 +104,20 @@ void TargetPickerRow::rebuild()
     }
     m_combo->setCurrentIndex(current);
 
-    m_hint->setText(tr("No matching collections on your accounts."));
-    m_hint->setVisible(anyConnectedAccount && m_combo->count() == 1);
+    // Shakedown F5: the hint used to be suppressed exactly when it mattered
+    // — accounts that failed to connect leave zero collections, so "no
+    // matching collections" never showed. Distinguish the two silences.
+    const bool hasAccounts = !m_state->accounts.isEmpty();
+    if (anyConnectedAccount && m_combo->count() == 1) {
+        m_hint->setText(tr("No matching collections on your accounts."));
+        m_hint->setVisible(true);
+    } else if (hasAccounts && !anyConnectedAccount) {
+        m_hint->setText(tr("Accounts have not connected yet — only local "
+                           "files are available until they do."));
+        m_hint->setVisible(true);
+    } else {
+        m_hint->setVisible(false);
+    }
 }
 
 void TargetPickerRow::onCurrentIndexChanged(int idx)

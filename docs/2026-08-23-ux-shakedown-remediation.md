@@ -225,3 +225,27 @@ Full suite: **133/133 pass.**
   transcode → the Log dock shows the transcoding warning (previously only
   console-visible).
 - Watch a multi-hop HotSync move data → "Sync pass 2 of 3" lines appear.
+
+---
+
+## Cycle 5 — Tier 5 quick wins (F5, F8, F18)
+
+**Commit:** this one.
+
+- **F5:** the wizard's sync-target rows now distinguish the two silences:
+  connected accounts with no matching collections keep the "No matching
+  collections on your accounts." hint; accounts that have not connected
+  show a new "Accounts have not connected yet — only local files are
+  available until they do." hint instead of nothing.
+- **F8:** category-reconcile failures at connect time (AppInfo write
+  failure, no-free-slot) are surfaced via `logMessage` into the Log dock
+  alongside the existing console warnings.
+- **F18:** the window title stays one consistent form —
+  "Wild Palms - Palm Pilot Synchronization[ — \<profile\>]" — instead of
+  being replaced by a bare "Wild Palms - \<profile\>" on load.
+
+### Tests
+
+`tst_targetpickerpage` gains `hintShownWhenAccountsNotYetConnected`
+(all four conduit rows show the new hint for an unconnected account).
+Full suite: **133/133 pass.**

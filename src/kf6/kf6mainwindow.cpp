@@ -549,9 +549,12 @@ void KF6MainWindow::updateMenuState(bool connected)
 
 void KF6MainWindow::updateWindowTitle()
 {
-    QString title = i18n("Wild Palms");
+    // Shakedown F18: loading a profile used to replace the startup title
+    // ("Wild Palms - Palm Pilot Synchronization") with a bare
+    // "Wild Palms - <profile>". Keep one consistent form.
+    QString title = i18n("Wild Palms - Palm Pilot Synchronization");
     if (m_currentProfile) {
-        title += QStringLiteral(" - ") + m_currentProfile->name();
+        title += QStringLiteral(" — ") + m_currentProfile->name();
     }
     setWindowTitle(title);
 }
