@@ -93,6 +93,14 @@ public:
     Kalburator::Conflict::ConflictStore *conflictStoreForTest() const {
         return m_uiConflictStore.get();
     }
+    // Shakedown F10 seams: reach the loaded runtime / run the resolution
+    // bridge without opening ConflictReviewDialog.
+    WildPalms::Runtime::PalmRuntime *palmRuntimeForTest() const {
+        return m_palmRuntime.get();
+    }
+    int applyConflictResolutionsForTest() {
+        return applyConflictResolutionsToEngine();
+    }
 
     // F.1c.1 test seam — install a stub wizard runner that returns a
     // pre-built Result without actually exec()ing a QWizard.
@@ -222,6 +230,10 @@ private:
 
     // F.2 sub-project D — conflict badge helper
     void refreshConflictBadge();
+    /// Shakedown F10: push resolved-but-unapplied decisions from
+    /// m_uiConflictStore into the engine's SyncConflictStore so they
+    /// replay on the next sync. Returns the number applied.
+    int applyConflictResolutionsToEngine();
 
     // Dashboard redesign — push device/profile/conduit state into the model.
     void pushProfileInfoToStatusModel();

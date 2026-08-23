@@ -49,9 +49,7 @@ namespace Kalburator::Storage {
 namespace Kalburator::Sync {
     struct ConflictInfo;
     class SyncConflictStore;
-}
-
-namespace Kalburator::Conflict {
+}namespace Kalburator::Conflict {
     struct ConflictRecord;
 }
 
@@ -185,9 +183,20 @@ public:
     void setMassDeleteGuard(Kalburator::Conflict::IMassDeleteGuard *guard);
 
     /// Borrowed pointer to the embedded engine's SyncConflictStore.
-    /// Used by the conflict UI to read deferred conflicts. May be
-    /// nullptr if the engine wasn't given a store.
+    /// Used by the conflict UI to read deferred conflicts. Non-null
+    /// since F10 (a per-profile store is attached at construction).
     Kalburator::Sync::SyncConflictStore *syncConflictStore() const;
+
+    /// Shakedown F10 bridge: apply UI-side resolved-but-unapplied
+    /// decisions (from ConflictReviewWidget's ConflictStore) into the
+    /// embedded engine's SyncConflictStore so that
+    /// SyncEngine::rehydratePendingResolutions() replays them on the
+    /// next sync. Lives here because WildPalmsCore cannot include the
+    /// engine-side synctypes.h (WP-local file collision). Returns the
+    /// number of records applied; records with decisions that have no
+    /// persisted engine counterpart (currently DeleteBoth) are skipped.
+    int applyConflictResolutions(
+        const QList<Kalburator::Conflict::ConflictRecord> &resolved);
 
     /// Convert engine-side `Sync::ConflictInfo` into the UI-side
     /// `Conflict::ConflictRecord` shape consumed by `ConflictReviewDialog`.
@@ -348,6 +357,12 @@ private:
     // (which populates them) and m_engine (which reads them). Declared before
     // both so it is constructed first and destroyed last.
     Kalburator::Shape::ShapeRegistries                           m_shape;
+    // Shakedown F10: per-profile engine-side conflict store (SQLite,
+    // .state/sync-conflicts.db). The engine borrows this pointer: deferred
+    // Unmonitored AskUser conflicts persist here and rehydrate at every
+    // runSync entry so UI-applied resolutions replay on the next sync.
+    // Declared BEFORE m_engine (which borrows it) so it outlives the engine.
+    std::unique_ptr<Kalburator::Sync::SyncConflictStore>         m_engineConflictStore;
     std::unique_ptr<Kalburator::Sync::ISyncHost>                 m_syncHost;
     std::unique_ptr<Kalburator::Engine::SyncEngine>              m_engine;
     std::unique_ptr<Kalburator::Storage::BaselineStore>          m_baselineStore;

@@ -616,6 +616,32 @@ set_tests_properties(tst_kf6mainwindow_conflict_badge PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+# Shakedown F10: conflict resolutions applied in ConflictReviewDialog must
+# land in the engine's SyncConflictStore (replay on next sync).
+add_executable(tst_kf6mainwindow_conflict_apply
+    tst_kf6mainwindow_conflict_apply.cpp)
+target_link_libraries(tst_kf6mainwindow_conflict_apply
+    PRIVATE
+        Qt::Core
+        Qt::Test
+        Qt::Widgets
+        KF6::XmlGui
+        KF6::ConfigCore
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,Kalburator::Sync>
+        PalmDeviceAccessLib
+        WildPalmsRuntime
+        WildPalmsPalmDevice
+        WildPalmsCore
+        pisock
+        bluetooth
+        usb
+)
+add_test(NAME tst_kf6mainwindow_conflict_apply
+         COMMAND tst_kf6mainwindow_conflict_apply)
+set_tests_properties(tst_kf6mainwindow_conflict_apply PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 # F.1b T13: ProfilePropertiesDialog rename behavior — TDD red-phase tests.
 # Tests the future renameRequested signal, Name field, and onApply slot.
 add_executable(tst_profilepropertiesdialog_rename

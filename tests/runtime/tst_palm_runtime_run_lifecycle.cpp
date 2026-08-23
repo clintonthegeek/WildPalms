@@ -19,6 +19,7 @@
 #include "collectioninfo.h"
 #include "backendrecord.h"
 #include "synctypes.h"
+#include "syncconflictstore.h"
 #include "../blobsyncbackendwrapper.h"
 
 using namespace WildPalms::Runtime;
@@ -102,8 +103,7 @@ private slots:
         QVERIFY(!fut.result().success);
     }
 
-    void reentrantHotSync_rejectedWithoutNewSignals()
-    {
+    void reentrantHotSync_rejectedWithoutNewSignals()    {
         QTemporaryDir profileDir;
         QVERIFY(profileDir.isValid());
         PalmRuntime rt(profileDir.path());
@@ -164,6 +164,37 @@ private slots:
         // Exactly ONE pair total for the whole episode.
         QTRY_VERIFY_WITH_TIMEOUT(started.count() == 1
                                  && finished.count() == 1, 5000);
+    }
+
+    void engineConflictStore_attachedAndFunctional()
+    {
+        // Shakedown F10 prerequisite: the engine's SyncConflictStore must
+        // be attached per profile so deferred conflicts persist and UI
+        // resolutions can replay on the next sync.
+        QTemporaryDir profileDir;
+        QVERIFY(profileDir.isValid());
+        PalmRuntime rt(profileDir.path());
+
+        auto *store = rt.syncConflictStore();
+        QVERIFY(store != nullptr);
+        QVERIFY(store->isOpen());
+
+        Kalburator::Sync::ConflictInfo info;
+        info.mappingId = QStringLiteral("mapping-1");
+        info.sourceId  = QStringLiteral("rec-1");
+        info.targetId  = QStringLiteral("rec-1");
+        info.detectedAt = QDateTime::currentDateTime();
+        const QString cid = store->recordConflict(info);
+        QVERIFY(!cid.isEmpty());
+        QCOMPARE(store->unresolvedConflicts().size(), 1);
+
+        store->resolveConflict(cid,
+            Kalburator::Sync::ConflictResolution::TargetWins);
+        QCOMPARE(store->unresolvedConflicts().size(), 0);
+        const auto resolved = store->resolvedConflicts();
+        QCOMPARE(resolved.size(), 1);
+        QCOMPARE(resolved.first().resolution,
+                 Kalburator::Sync::ConflictResolution::TargetWins);
     }
 };
 

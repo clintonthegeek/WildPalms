@@ -20,6 +20,7 @@
 #include "conflicthandlerregistry.h"
 #include "syncbackend.h"
 #include "synctypes.h"
+#include "syncconflictstore.h"
 #include "collectioninfo.h"
 #include "conflictrecord.h"
 #include <isynchost.h>
@@ -165,6 +166,14 @@ PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
     m_engine = std::make_unique<Kalburator::Sync::SyncEngine>(
         m_registry.get(), m_syncHost.get(), m_shape);
     m_engine->setBaselineStore(m_baselineStore.get());
+    // Shakedown F10: attach the per-profile conflict store. Without it the
+    // engine's deferred conflicts were never persisted and
+    // rehydratePendingResolutions() early-returned — UI resolutions could
+    // never replay on the next sync.
+    m_engineConflictStore =
+        std::make_unique<Kalburator::Sync::SyncConflictStore>(
+            QDir(profilePath).filePath(QStringLiteral(".state/sync-conflicts.db")));
+    m_engine->setSyncConflictStore(m_engineConflictStore.get());
     // No-op today (handler set after construction), but keeps this consistent
     // with the re-install pattern required at every engine-construction site.
     if (m_conflictHandler)
@@ -1397,6 +1406,41 @@ QFuture<PalmRunResult> PalmRuntime::restore()
         });
         return r;
     });
+}
+
+// Shakedown F10: bridge UI conflict decisions into the engine's
+// SyncConflictStore. Lives here (not in KF6MainWindow) because WildPalmsCore
+// cannot include the engine-side synctypes.h (WP-local file collision).
+int PalmRuntime::applyConflictResolutions(
+    const QList<Kalburator::Conflict::ConflictRecord> &resolved)
+{
+    if (!m_engineConflictStore)
+        return 0;
+    int applied = 0;
+    for (const auto &rec : resolved) {
+        Kalburator::Sync::ConflictResolution res;
+        switch (rec.decision) {
+        case Kalburator::Conflict::ConflictDecision::UseSource:
+            res = Kalburator::Sync::ConflictResolution::SourceWins; break;
+        case Kalburator::Conflict::ConflictDecision::UseTarget:
+            res = Kalburator::Sync::ConflictResolution::TargetWins; break;
+        case Kalburator::Conflict::ConflictDecision::UseBoth:
+            res = Kalburator::Sync::ConflictResolution::Duplicate; break;
+        case Kalburator::Conflict::ConflictDecision::Merge:
+            // O52 caveat: the merged payload is not persisted, so a
+            // replayed merge falls back to the engine's automatic merger.
+            res = Kalburator::Sync::ConflictResolution::CustomMerge; break;
+        case Kalburator::Conflict::ConflictDecision::Skip:
+            // Engine-side Skip means "leave unchanged" — recording it moves
+            // the row out of unresolved so it stops re-presenting.
+            res = Kalburator::Sync::ConflictResolution::Skip; break;
+        default:
+            continue;   // DeleteBoth has no persisted counterpart yet
+        }
+        m_engineConflictStore->resolveConflict(rec.conflictId, res);
+        ++applied;
+    }
+    return applied;
 }
 
 bool shouldContinueSync(const QList<Kalburator::Sync::SyncResult> &results,

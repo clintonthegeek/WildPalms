@@ -71,3 +71,53 @@ KF6MainWindow:
   returns to idle immediately with an explanatory log line (no eternal
   spinner).
 - Double-click Sync Now mid-run → second click is a visible no-op.
+
+---
+
+## Cycle 2 — Tier 2: conflict honesty (F10)
+
+**Commit:** this one. "Apply Resolutions (Sync)" is no longer wired to
+nothing.
+
+### Engine-side store attached (prerequisite)
+
+`PalmRuntime` now constructs a per-profile engine-side
+`Kalburator::Sync::SyncConflictStore` at `.state/sync-conflicts.db` (next to
+`hub.db`) and hands it to `SyncEngine::setSyncConflictStore()`. Previously
+WP never attached one, so `syncConflictStore()` returned nullptr, deferred
+conflicts were never persisted, and `rehydratePendingResolutions()`
+early-returned — resolutions could not replay even in principle.
+`PalmRuntime::applyConflictResolutions()` maps UI decisions
+(`UseSource/UseTarget/UseBoth/Merge/Skip`) onto engine resolutions
+(`SourceWins/TargetWins/Duplicate/CustomMerge/Skip`) and writes them into
+the store; it lives on PalmRuntime because WildPalmsCore cannot include the
+engine-side `synctypes.h` (WP-local file collision). Known caveat (O52,
+lib-side): merged payloads are not persisted, so a replayed Merge falls
+back to the engine's automatic merger; `DeleteBoth` has no persisted
+counterpart yet and is reported as unapplied rather than mis-mapped.
+
+### Window wiring
+
+`onConflictBadgeClicked()` connects `ConflictReviewDialog::
+applyResolutionsRequested` → new `KF6MainWindow::applyConflictResolutionsToEngine()`:
+reads resolved-but-unapplied records from the UI store, bridges them via
+the runtime, marks them applied in the UI store, and logs an honest summary
+("*Applied N conflict resolution(s) — they will take effect on the next
+sync*"). Unsupported decisions log a warning instead of silently vanishing.
+
+### Tests
+
+- New `tests/runtime/tst_kf6mainwindow_conflict_apply.cpp`: safe no-op
+  without a runtime; full round-trip (engine-recorded conflict id → UI
+  detection mirror → UseSource → engine store holds `SourceWins`, marked
+  applied); DeleteBoth left unapplied.
+- `tst_palm_runtime_run_lifecycle` gains `engineConflictStore_
+  attachedAndFunctional`.
+- Full suite: **132/132 pass**.
+
+### Verification notes for user testing
+
+- Engineer a two-sided edit of one record between syncs with AskUser
+  policy → conflict badge appears → review dialog → resolve + "Apply
+  Resolutions" → next HotSync applies the chosen side and the conflict
+  stops re-presenting.

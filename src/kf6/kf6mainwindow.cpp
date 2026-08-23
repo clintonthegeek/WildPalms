@@ -2216,6 +2216,12 @@ void KF6MainWindow::onConflictBadgeClicked()
     auto *dlg = new ConflictReviewDialog(m_uiConflictStore.get(),
                                           nullptr, this);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
+    // Shakedown F10: "Apply Resolutions (Sync)" used to be wired to
+    // nothing — user decisions died in the UI store and the next sync
+    // re-presented the same conflicts. Bridge them into the engine's
+    // SyncConflictStore so rehydratePendingResolutions() replays them.
+    connect(dlg, &ConflictReviewDialog::applyResolutionsRequested,
+            this, [this]() { applyConflictResolutionsToEngine(); });
     connect(dlg, &QDialog::finished, this, [this]() {
         // Drop applied/resolved records so the next sync sees a clean
         // pending list; refresh the badge from the store.
@@ -2228,6 +2234,35 @@ void KF6MainWindow::onConflictBadgeClicked()
         refreshConflictBadge();
     });
     dlg->show();
+}
+
+int KF6MainWindow::applyConflictResolutionsToEngine()
+{
+    if (!m_uiConflictStore)
+        return 0;
+    if (!m_palmRuntime) {
+        m_logWidget->logError(i18n(
+            "Cannot apply conflict resolutions: no sync runtime loaded"));
+        return 0;
+    }
+
+    const auto resolved = m_uiConflictStore->resolvedUnappliedConflicts();
+    // The mapping + engine-store write live on PalmRuntime: WildPalmsCore
+    // cannot include the engine-side synctypes.h (WP-local collision).
+    const int applied = m_palmRuntime->applyConflictResolutions(resolved);
+
+    if (applied > 0) {
+        for (const auto &rec : resolved)
+            m_uiConflictStore->markApplied(rec.conflictId, true);
+        m_logWidget->logInfo(i18n(
+            "Applied %1 conflict resolution(s) — they will take effect on "
+            "the next sync", applied));
+    }
+    if (resolved.size() > applied)
+        m_logWidget->logWarning(i18n(
+            "%1 conflict resolution(s) could not be applied (unsupported "
+            "decision)", resolved.size() - applied));
+    return applied;
 }
 
 void KF6MainWindow::refreshConflictBadge()
