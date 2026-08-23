@@ -121,3 +121,68 @@ sync*"). Unsupported decisions log a warning instead of silently vanishing.
   policy → conflict badge appears → review dialog → resolve + "Apply
   Resolutions" → next HotSync applies the chosen side and the conflict
   stops re-presenting.
+
+---
+
+## Cycle 3 — Tier 4: feedback-honesty batch (F13, F14, F15, F16)
+
+**Commit:** this one.
+
+### F13 — cancellation is no longer an error
+
+`PalmRunResult` gains `bool cancelled`. The engine watchers (fixpoint loop,
+mirror) and the clobber `.then()` set it when the run was cancelled;
+`KF6MainWindow::onPalmRunFinished` reports "*\<op\> cancelled*" via
+logWarning + a transient status-bar message instead of "[ERROR] … finished
+with errors: Sync cancelled".
+
+### F14 — "Last sync" actually updates
+
+Successful runs stamp `Profile::setLastSyncTime(result.endTime)` +
+`save()` in `onPalmRunFinished`, then refresh the dashboard model. Failed
+and cancelled runs do not stamp.
+
+### F15 — dead UI wired up
+
+- **Navigate Ctrl+1–5**: were actions in the collection whose signals had
+  zero consumers (no menu even referenced them). Now wired: Memos /
+  Contacts / Calendar / Tasks switch to their conduit pages; Dashboard
+  selects the Patchbay page (the dashboard strip itself is not a page).
+- **Review &Conflicts...**: was force-disabled forever ("for a future
+  reimplementation"). It now opens the same review dialog as the badge,
+  its enablement follows the live pending-conflict count, and the "(%1)"
+  label is driven by that count instead of the stale legacy SyncState
+  loop (removed).
+- **Change Sync Folder...** already fixed in Cycle 1 (real directory
+  picker instead of creating a hollow profile).
+
+### F16 — Quit quits; tray-hiding explains itself
+
+- File→Quit used to call `QWidget::close()`, which the hide-to-tray
+  `closeEvent` silently swallowed: window vanished, process lived on.
+  Quit now routes through new `appQuitRequested()` which sets a bypass
+  flag before closing (wired via SLOT string — ActionManager only knows
+  `KXmlGuiWindow*`).
+- Closing to tray shows a one-time explanation ("Wild Palms keeps
+  running… Use File → Quit to exit completely").
+- Both paths first guard an in-flight sync with a confirmation dialog
+  ("may leave records half-written").
+
+### Tests
+
+- New `tests/runtime/tst_kf6mainwindow_lastsync.cpp`: successful run stamps
+  profile.conf (verified through a fresh Profile load); failed/cancelled
+  runs leave lastSyncTime untouched. New seams:
+  `runPalmFinishedForTest`, `currentProfilePathForTest`.
+- Full suite: **133/133 pass**.
+
+### Verification notes for user testing
+
+- Start a HotSync against a slow device and press Cancel → log/status say
+  "cancelled", dashboard does NOT claim errors.
+- After any successful sync the dashboard's "Last sync" updates and
+  survives an app restart.
+- Ctrl+2..5 jump between PIM pages; Review Conflicts enables only while
+  conflicts are pending.
+- File→Quit exits the app even with minimize-to-tray on; clicking window
+  X hides to tray once with an explanation; quitting mid-sync asks first.

@@ -83,6 +83,7 @@ public:
     // Non-inline: Profile is forward-declared here; definition is in .cpp
     // where profile.h is included.
     QString currentProfileIdForTest() const;
+    QString currentProfilePathForTest() const;
 
     // Test seams (F.2 sub-project D).
     int pendingConflictCountForTest() const { return m_pendingConflictCount; }
@@ -100,6 +101,10 @@ public:
     }
     int applyConflictResolutionsForTest() {
         return applyConflictResolutionsToEngine();
+    }
+    // Shakedown F14 seam: drive the run-finished path without hardware.
+    void runPalmFinishedForTest(WildPalms::Runtime::PalmRunResult result) {
+        onPalmRunFinished(result);
     }
 
     // F.1c.1 test seam — install a stub wizard runner that returns a
@@ -174,6 +179,9 @@ private Q_SLOTS:
     void onAbout();
     void onSettings();
     void onClearLog();
+
+    // F16: File→Quit must actually quit even when close hides to tray
+    void appQuitRequested();
 
     // View management
     void onToggleLogPanel(bool visible);
@@ -353,6 +361,10 @@ private:
     // System tray
     KStatusNotifierItem *m_trayIcon = nullptr;
     bool m_minimizeToTray = true;
+    // F16: one-time explanation that closing hides to tray, and a flag
+    // letting File→Quit bypass the hide-to-tray closeEvent.
+    bool m_trayHintShown = false;
+    bool m_forceQuit = false;
     void updateTrayState(const QString &status);
 };
 

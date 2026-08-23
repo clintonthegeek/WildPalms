@@ -1001,10 +1001,11 @@ void PalmRuntime::dispatchSyncPass_()
                 "HotSync aborted: Palm device disconnected "
                 "(%1 of %2 mappings affected)").arg(linkLostCount).arg(results.size());
         }
-        // A cancelled run is not a successful one; pre-B.3 the result was
-        // simply never delivered on cancel, so this branch is new surface.
+        // A cancelled run is not a successful one (F13: but it is not an
+        // error either — the flag lets the UI pick a neutral tone).
         if (anyCancelled) {
             m_syncAccum.success = false;
+            m_syncAccum.cancelled = true;
             if (m_syncAccum.errorMessage.isEmpty())
                 m_syncAccum.errorMessage = QStringLiteral("Sync cancelled");
         }
@@ -1169,6 +1170,7 @@ QFuture<PalmRunResult> PalmRuntime::runMirror(MirrorDir dir, const QString &mode
         PalmRunResult r;
         r.startTime = QDateTime::currentDateTimeUtc();
         r.success   = sr.success && !sr.cancelled;
+        r.cancelled = sr.cancelled;   // F13
         // K.9: propagate engine error message to the UI (see runAllMappings).
         if (!r.success)
             r.errorMessage = sr.cancelled ? QStringLiteral("Sync cancelled")
@@ -1254,6 +1256,8 @@ QFuture<PalmRunResult> PalmRuntime::clobberSync(const QList<QString> &mappingIds
             r.startTime = QDateTime::currentDateTimeUtc();
             r.success = std::all_of(results.begin(), results.end(),
                 [](const auto &sr){ return sr.success; });
+            r.cancelled = std::any_of(results.begin(), results.end(),
+                [](const auto &sr){ return sr.cancelled; });   // F13
             if (!r.success) {
                 for (const auto &sr : results) {
                     if (!sr.success) {

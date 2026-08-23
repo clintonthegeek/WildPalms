@@ -254,10 +254,46 @@ KF6MainWindow::~KF6MainWindow()
     // m_currentProfile is std::unique_ptr — RAII handles deletion.
 }
 
+void KF6MainWindow::appQuitRequested()
+{
+    // F16: File→Quit used to call QWidget::close(), which closeEvent
+    // silently converted into "hide to tray" — the window vanished, the
+    // process lived on. Route real quit through a bypass flag.
+    m_forceQuit = true;
+    close();
+}
+
 void KF6MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (m_minimizeToTray && m_trayIcon) {
+    // F16: guard an in-flight sync — closing mid-run risks half-written
+    // data on both sides.
+    if (m_palmRuntime && m_palmRuntime->isSyncRunning()) {
+        const auto answer = QMessageBox::question(this,
+            i18n("Sync In Progress"),
+            i18n("A sync is currently in progress.\n"
+                 "Closing now may leave records half-written.\n\n"
+                 "Close anyway?"),
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+            QMessageBox::No);
+        if (answer != QMessageBox::Yes) {
+            m_forceQuit = false;
+            event->ignore();
+            return;
+        }
+    }
+
+    if (!m_forceQuit && m_minimizeToTray && m_trayIcon) {
         hide();
+        if (!m_trayHintShown) {
+            // F16: closing used to look like the app quit (no explanation,
+            // no confirmation). Explain once what actually happened.
+            m_trayHintShown = true;
+            QMessageBox::information(this,
+                i18n("Wild Palms Keeps Running"),
+                i18n("The window was sent to the system tray.\n\n"
+                     "Wild Palms is still running and listening for Palm "
+                     "devices.\nUse File → Quit to exit completely."));
+        }
         event->ignore();
         return;
     }
@@ -369,6 +405,33 @@ void KF6MainWindow::setupConnections()
             this, &KF6MainWindow::onBackup);
     connect(m_actionManager, &ActionManager::restoreRequested,
             this, &KF6MainWindow::onRestore);
+
+    // Shakedown F15: the Navigate actions emitted signals nothing consumed
+    // — Ctrl+1..5 did literally nothing. Wire them to page switching.
+    connect(m_actionManager, &ActionManager::viewDashboardRequested,
+            this, [this]() {
+                if (m_patchbayPageItem)
+                    m_pageWidget->setCurrentPage(m_patchbayPageItem);
+            });
+    const QHash<QString, void (ActionManager::*)()> navMap{
+        { QStringLiteral("memo"),     &ActionManager::viewMemosRequested },
+        { QStringLiteral("contacts"), &ActionManager::viewContactsRequested },
+        { QStringLiteral("calendar"), &ActionManager::viewCalendarRequested },
+        { QStringLiteral("todo"),     &ActionManager::viewTasksRequested },
+    };
+    for (auto it = navMap.constBegin(); it != navMap.constEnd(); ++it) {
+        connect(m_actionManager, it.value(), this, [this, key = it.key()]() {
+            const auto pageIt = m_palmPluginPages.constFind(key);
+            if (pageIt != m_palmPluginPages.constEnd())
+                m_pageWidget->setCurrentPage(pageIt.value());
+        });
+    }
+
+    // Shakedown F10/F15: Review Conflicts... was permanently disabled and
+    // its signal never connected. It now opens the same review dialog as
+    // the badge; enablement follows the pending count (refreshConflictBadge).
+    connect(m_actionManager, &ActionManager::showConflictsRequested,
+            this, &KF6MainWindow::onConflictBadgeClicked);
     connect(m_actionManager, &ActionManager::changeSyncFolderRequested,
             this, &KF6MainWindow::onChangeSyncFolder);
     connect(m_actionManager, &ActionManager::openSyncFolderRequested,
@@ -498,23 +561,12 @@ void KF6MainWindow::updateProfileMenuState()
     bool hasProfile = m_currentProfile != nullptr;
     m_actionManager->updateProfileState(hasProfile);
 
-    // Update conflicts menu with count
-    if (hasProfile) {
-        int totalConflicts = 0;
-        QString userName = m_currentProfile->deviceFingerprint().userName;
-        QString statePath = m_currentProfile->stateDirectoryPath();
-        QStringList conduits = {QStringLiteral("memos"), QStringLiteral("contacts"),
-                                QStringLiteral("calendar"), QStringLiteral("todos")};
-
-        for (const QString &conduitId : conduits) {
-            Sync::SyncState state(userName, conduitId);
-            state.setStateDirectory(statePath);
-            state.load();
-            totalConflicts += state.pendingConflictCount();
-        }
-
-        m_actionManager->updateConflictCount(totalConflicts);
-    }
+    // Shakedown F15: the label used to be driven by a legacy SyncState
+    // pending-conflict count (a different, stale source) that fought the
+    // badge. Drive it from the live runtime conflict count instead.
+    m_actionManager->updateConflictCount(m_pendingConflictCount);
+    m_actionManager->showConflictsAction()->setEnabled(
+        hasProfile && m_pendingConflictCount > 0);
 }
 
 
@@ -1917,6 +1969,11 @@ QString KF6MainWindow::currentProfileIdForTest() const
     return m_currentProfile ? m_currentProfile->id() : QString();
 }
 
+QString KF6MainWindow::currentProfilePathForTest() const
+{
+    return m_currentProfile ? m_currentProfile->syncFolderPath() : QString();
+}
+
 void KF6MainWindow::onProfileSettings()
 {
     if (!m_currentProfile) {
@@ -2270,6 +2327,14 @@ void KF6MainWindow::refreshConflictBadge()
     if (m_syncStatusModel)
         m_syncStatusModel->onConflictCountChanged(m_pendingConflictCount);
 
+    // Shakedown F15: keep the menu action's label + enablement in step with
+    // the live pending count.
+    if (m_actionManager) {
+        m_actionManager->updateConflictCount(m_pendingConflictCount);
+        m_actionManager->showConflictsAction()->setEnabled(
+            m_currentProfile != nullptr && m_pendingConflictCount > 0);
+    }
+
     if (!m_conflictBadge) return;
     if (m_pendingConflictCount > 0) {
         m_conflictBadge->setText(
@@ -2323,9 +2388,21 @@ void KF6MainWindow::onPalmRunFinished(WildPalms::Runtime::PalmRunResult result)
 {
     const QString op = m_currentPalmRunLabel.isEmpty()
                        ? i18n("Palm operation") : m_currentPalmRunLabel;
-    if (result.success) {
+    if (result.cancelled) {
+        // Shakedown F13: a user cancel is not an error.
+        m_logWidget->logWarning(i18n("%1 cancelled", op));
+        statusBar()->showMessage(i18n("%1 cancelled", op), 4000);
+    } else if (result.success) {
         m_logWidget->logInfo(i18n("%1 completed successfully", op));
         statusBar()->showMessage(i18n("%1 complete", op));
+
+        // Shakedown F14: stamp the profile so "Last sync" stops reading
+        // "Never" forever.
+        if (m_currentProfile && result.endTime.isValid()) {
+            m_currentProfile->setLastSyncTime(result.endTime);
+            m_currentProfile->save();
+            pushProfileInfoToStatusModel();
+        }
     } else {
         m_logWidget->logError(i18n("%1 finished with errors: %2",
                                    op, result.errorMessage));

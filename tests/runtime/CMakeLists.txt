@@ -642,6 +642,30 @@ set_tests_properties(tst_kf6mainwindow_conflict_apply PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+# Shakedown F14: completed runs stamp Profile::lastSyncTime; cancelled /
+# failed runs must not.
+add_executable(tst_kf6mainwindow_lastsync tst_kf6mainwindow_lastsync.cpp)
+target_link_libraries(tst_kf6mainwindow_lastsync
+    PRIVATE
+        Qt::Core
+        Qt::Test
+        Qt::Widgets
+        KF6::XmlGui
+        KF6::ConfigCore
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,Kalburator::Sync>
+        PalmDeviceAccessLib
+        WildPalmsRuntime
+        WildPalmsPalmDevice
+        WildPalmsCore
+        pisock
+        bluetooth
+        usb
+)
+add_test(NAME tst_kf6mainwindow_lastsync COMMAND tst_kf6mainwindow_lastsync)
+set_tests_properties(tst_kf6mainwindow_lastsync PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 # F.1b T13: ProfilePropertiesDialog rename behavior — TDD red-phase tests.
 # Tests the future renameRequested signal, Name field, and onApply slot.
 add_executable(tst_profilepropertiesdialog_rename

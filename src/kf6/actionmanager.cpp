@@ -30,7 +30,11 @@ void ActionManager::setupActions()
     setupNavigationActions();
 
     // Add standard KDE actions
-    KStandardAction::quit(m_window, &QWidget::close, m_actionCollection);
+    // F16: route Quit through KF6MainWindow::appQuitRequested() so it
+    // actually quits instead of being swallowed by the hide-to-tray
+    // closeEvent (resolved via the SLOT string because ActionManager only
+    // knows the window as KXmlGuiWindow*).
+    KStandardAction::quit(m_window, SLOT(appQuitRequested()), m_actionCollection);
     KStandardAction::preferences(this, [this]() {
         Q_EMIT settingsRequested();
     }, m_actionCollection);
@@ -266,10 +270,12 @@ void ActionManager::updateProfileState(bool hasProfile)
     closeProfileAction()->setEnabled(hasProfile);
     profileSettingsAction()->setEnabled(hasProfile);
     installFilesAction()->setEnabled(hasProfile);
-    // showConflictsAction is permanently disabled: onShowConflicts() was removed
-    // when m_conflictStore was dropped in T13/T14.  Keep the action in the menu
-    // (for a future reimplementation) but never let it fire.
-    showConflictsAction()->setEnabled(false);
+    // Shakedown F15: showConflictsAction used to be permanently disabled
+    // ("for a future reimplementation" — which F10 delivered). Enablement
+    // now follows the live pending-conflict count; see KF6MainWindow::
+    // refreshConflictBadge(). Without a profile there is nothing to review.
+    if (!hasProfile)
+        showConflictsAction()->setEnabled(false);
 }
 
 void ActionManager::updateConflictCount(int count)

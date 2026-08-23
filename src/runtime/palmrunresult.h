@@ -19,6 +19,9 @@ struct PalmRunResult {
     };
 
     bool                          success = true;
+    // Shakedown F13: a user-cancelled run is not an error. UI consumers
+    // use this to pick a neutral tone instead of "finished with errors".
+    bool                          cancelled = false;
     QString                       errorMessage;
     QStringList                   logLines;
     QHash<QString, PluginStats>   perPluginStats;
