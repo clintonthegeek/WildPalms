@@ -651,6 +651,10 @@ void KF6MainWindow::loadProfile(const QString &path)
             this, &KF6MainWindow::onPalmRunStarted);
     connect(m_palmRuntime.get(), &WildPalms::Runtime::PalmRuntime::runFinished,
             this, &KF6MainWindow::onPalmRunFinished);
+    // Shakedown F12: engine diagnostics (transcoding warnings, pass
+    // announcements, per-mapping failures) now flow into the Log dock.
+    connect(m_palmRuntime.get(), &WildPalms::Runtime::PalmRuntime::runLog,
+            m_logWidget, &LogWidget::logInfo);
 
     // Dashboard redesign — feed the SyncStatusModel from this profile's runtime.
     connect(m_palmRuntime.get(), &WildPalms::Runtime::PalmRuntime::connectionStarted,

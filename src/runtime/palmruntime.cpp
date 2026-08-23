@@ -183,6 +183,26 @@ PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
                      &Kalburator::Sync::SyncEngine::conflictDetected,
                      this, &PalmRuntime::conflictDetected);
 
+    // Shakedown F12: engine diagnostics never reached the in-app Log dock
+    // (lossy-transcode warnings, multi-pass announcements). Bridge them to
+    // runLog; KF6MainWindow pipes runLog into the LogWidget.
+    QObject::connect(m_engine.get(),
+                     &Kalburator::Sync::SyncEngine::transcodingWarning,
+                     this, [this](const QString &calendarId,
+                                  const QString &uid,
+                                  const QStringList &warnings) {
+        Q_EMIT runLog(QStringLiteral(
+            "Transcoding warning on %1 (record %2): data loss: %3")
+            .arg(calendarId, uid, warnings.join(QStringLiteral(", "))));
+    });
+    QObject::connect(m_engine.get(),
+                     &Kalburator::Sync::SyncEngine::syncPassStarted,
+                     this, [this](int pass, int maxPasses) {
+        Q_EMIT runLog(QStringLiteral("Sync pass %1 of %2 — re-running "
+                                     "mappings dirtied by the last hop")
+                          .arg(pass).arg(maxPasses));
+    });
+
     QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::syncStarted,
                      this, [this](const QString &mappingId) {
         m_activeMappingId = mappingId;
@@ -980,6 +1000,10 @@ void PalmRuntime::dispatchSyncPass_()
                 anyCancelled = true;
             if (!sr.success && !sr.cancelled && !sr.skipped) {
                 m_syncAccum.success = false;
+                // F12: surface per-mapping failures in the Log dock as they
+                // happen, not only via the folded run summary at the end.
+                Q_EMIT runLog(QStringLiteral("Mapping failed: %1")
+                                  .arg(sr.errorMessage));
                 if (sr.errorMessage.contains(QLatin1String("Palm link"),
                                              Qt::CaseInsensitive)) {
                     ++linkLostCount;

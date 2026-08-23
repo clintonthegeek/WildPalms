@@ -186,3 +186,42 @@ and cancelled runs do not stamp.
   conflicts are pending.
 - File→Quit exits the app even with minimize-to-tray on; clicking window
   X hides to tray once with an explanation; quitting mid-sync asks first.
+
+---
+
+## Cycle 4 — F12: engine diagnostics reach the Log dock
+
+**Commit:** this one.
+
+`PalmRuntime::runLog` (declared since M6b, never emitted, never connected)
+is now live:
+
+- **Bridges in the PalmRuntime ctor:** engine `transcodingWarning`
+  ("Transcoding warning on \<cal\> (record \<uid\>): data loss: …" — the
+  known lossy alarm transcode will finally be visible) and
+  `syncPassStarted` ("Sync pass N of M — re-running mappings dirtied by
+  the last hop", making the multi-hop fixpoint observable).
+- **Per-mapping failures:** the pass watcher emits "Mapping failed: \<err\>"
+  as each mapping fails instead of folding everything into one end-of-run
+  summary line.
+- **Dock wiring:** `loadProfile()` connects `runLog → LogWidget::logInfo`.
+
+Deliberately out of scope: a global `qInstallMessageHandler` bridge for
+raw lib qWarning/qDebug output. The signal-level surfaces above cover the
+user-relevant diagnostics; a category-filtered Qt message handler is
+queued as polish if raw engine chatter is ever wanted in the dock.
+
+### Tests
+
+`tst_palm_runtime_run_lifecycle` gains `mappingFailure_emitsRunLog`: a
+seeded record + injected target-side create failure must produce a runLog
+line containing "failed" (and a failed run result).
+
+Full suite: **133/133 pass.**
+
+### Verification notes for user testing
+
+- Sync against a device/Palm baseline that triggers the lossy alarm
+  transcode → the Log dock shows the transcoding warning (previously only
+  console-visible).
+- Watch a multi-hop HotSync move data → "Sync pass 2 of 3" lines appear.

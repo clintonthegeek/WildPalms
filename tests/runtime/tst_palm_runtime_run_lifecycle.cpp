@@ -166,6 +166,74 @@ private slots:
                                  && finished.count() == 1, 5000);
     }
 
+    void mappingFailure_emitsRunLog()
+    {
+        // Shakedown F12: per-mapping failures must surface via runLog
+        // (piped into the Log dock by KF6MainWindow), not only in the
+        // folded end-of-run summary.
+        QTemporaryDir profileDir;
+        QVERIFY(profileDir.isValid());
+        PalmRuntime rt(profileDir.path());
+
+        auto palmBlob = std::make_unique<SlowLoadBlobBackend>();
+        auto *rawPalm = palmBlob.get();
+        {
+            CollectionInfo ci;
+            ci.id   = QStringLiteral("palm:calendar/0");
+            ci.name = QStringLiteral("Unfiled");
+            palmBlob->createCollection(ci);
+        }
+        rt.registerBackendInstanceForTest(QStringLiteral("palm-calendar"),
+            WildPalmsTest::BlobSyncBackendWrapper::wrap(
+                std::move(palmBlob), QStringLiteral("palm-calendar")));
+
+        auto pcBlob = std::make_unique<MockBlobBackend>();
+        auto *rawPc = pcBlob.get();
+        {
+            CollectionInfo ci;
+            ci.id   = QStringLiteral("pc-calendar/0");
+            ci.name = QStringLiteral("PC Calendar");
+            pcBlob->createCollection(ci);
+        }
+        rt.registerBackendInstanceForTest(QStringLiteral("pc-calendar"),
+            WildPalmsTest::BlobSyncBackendWrapper::wrap(
+                std::move(pcBlob), QStringLiteral("pc-calendar")));
+
+        {
+            SyncMapping m;
+            m.id             = QStringLiteral("log-test-mapping");
+            m.sourceBackend  = QStringLiteral("palm-calendar");
+            m.targetBackend  = QStringLiteral("pc-calendar");
+            m.sourceCalendar = QStringLiteral("palm:calendar/0");
+            m.targetCalendar = QStringLiteral("pc-calendar/0");
+            m.mode           = SyncMode::TwoWay;
+            m.enabled        = true;
+            rt.setMappingsForTest({m});
+        }
+
+        QSignalSpy logSpy(&rt, &PalmRuntime::runLog);
+
+        // Deterministic failure: seed one record on the Palm side so the
+        // sync MUST write to the target, then break the target's create.
+        Kalburator::Sync::BackendRecord seed;
+        seed.id          = QStringLiteral("seed-1");
+        seed.type        = QStringLiteral("event");
+        seed.displayName = QStringLiteral("Seed");
+        seed.data        = QByteArray("seed");
+        rawPalm->createRecord(QStringLiteral("palm:calendar/0"), seed);
+        rawPc->setFailNext(MockBlobBackend::FailurePoint::OnCreateRecord, 1);
+
+        auto fut = rt.hotSync();
+        QTRY_VERIFY_WITH_TIMEOUT(fut.isFinished(), 15000);
+
+        QVERIFY(!fut.result().success);
+        bool sawMappingFailureLine = false;
+        for (const auto &v : logSpy)
+            if (v.first().toString().contains(QStringLiteral("failed")))
+                sawMappingFailureLine = true;
+        QVERIFY(sawMappingFailureLine);
+    }
+
     void engineConflictStore_attachedAndFunctional()
     {
         // Shakedown F10 prerequisite: the engine's SyncConflictStore must
