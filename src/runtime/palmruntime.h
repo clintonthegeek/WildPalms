@@ -134,6 +134,13 @@ public:
 
     bool isRunning() const { return m_running; }
 
+    /// True while a sync dispatch (multi-pass fixpoint loop, mirror, or
+    /// clobber) is in flight. UI entry points use this to turn re-entrant
+    /// sync clicks into a user-visible no-op instead of a silent console
+    /// warning. Covers every path that installs m_activeSyncWatcher.
+    bool isSyncRunning() const { return m_syncPromise != nullptr
+                                       || m_activeSyncWatcher != nullptr; }
+
     /// Read-only view of the loaded Palm plugin instances.
     /// Valid after registerPalmPlugins() (called from the constructor).
     const std::vector<std::unique_ptr<Kalburator::Plugin>> &palmPlugins() const

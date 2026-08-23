@@ -6,48 +6,88 @@
 #include <KConfigGroup>
 
 #include "../../src/kf6/kf6mainwindow.h"
+#include "../../src/app/wizard/newprofilewizard.h"
 #include "../../src/runtime/profileregistry.h"
 #include "../../src/profile.h"
 #include "../wildpalms_qtest_main.h"
 
-class TestableMainWindow : public KF6MainWindow {
-public:
-    using KF6MainWindow::KF6MainWindow;
+#include <KConfigGroup>
+#include <KSharedConfig>
 
-    int     stopgapInvocations = 0;
-    QString stopgapReturn;
-
-protected:
-    QString showProfilePickerStopgap() override {
-        ++stopgapInvocations;
-        return stopgapReturn;
-    }
-};
-
+// Shakedown F1: first-run now routes through runProfileWizard() (the real
+// accounts-first wizard), stubbed here via setRunProfileWizardForTest —
+// the old bare name-prompt stopgap is gone.
 class TstKf6MainWindowStartup : public QObject
 {
     Q_OBJECT
 private slots:
-    void emptyRegistryInvokesStopgap();
+    void emptyRegistryRunsWizard_cancelCreatesNothing();
+    void emptyRegistryRunsWizard_acceptCreatesAndLoadsProfile();
     void validLastActiveAutoLoads();
     void staleLastActiveAutoLoadsMostRecent();
 };
 
-void TstKf6MainWindowStartup::emptyRegistryInvokesStopgap()
+void TstKf6MainWindowStartup::emptyRegistryRunsWizard_cancelCreatesNothing()
 {
     QTemporaryDir tmp;
     QVERIFY(tmp.isValid());
     auto cfg = KSharedConfig::openConfig(tmp.path() + QStringLiteral("/wprc"));
     auto reg = std::make_unique<WildPalms::Runtime::ProfileRegistry>(cfg);
 
-    TestableMainWindow w;
+    KF6MainWindow w;
     w.setProfileRegistryForTest(std::move(reg));
-    w.stopgapReturn = QString();   // user clicks Cancel on stopgap
+    int wizardRuns = 0;
+    w.setRunProfileWizardForTest([&wizardRuns]() {
+        ++wizardRuns;
+        return WildPalms::Wizard::Result{};   // user cancels the wizard
+    });
 
     const QString picked = w.runStartupForTest();
 
-    QCOMPARE(w.stopgapInvocations, 1);
+    QCOMPARE(wizardRuns, 1);
     QVERIFY(picked.isEmpty());
+    QCOMPARE(w.profileRegistryForTest()->entries().size(), 0);
+}
+
+void TstKf6MainWindowStartup::emptyRegistryRunsWizard_acceptCreatesAndLoadsProfile()
+{
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    auto cfg = KSharedConfig::openConfig(tmp.path() + QStringLiteral("/wprc"));
+    auto reg = std::make_unique<WildPalms::Runtime::ProfileRegistry>(cfg);
+    reg->setDefaultRoot(tmp.path() + QStringLiteral("/wp-root"));
+
+    KF6MainWindow w;
+    w.setProfileRegistryForTest(std::move(reg));
+    w.setRunProfileWizardForTest([]() {
+        WildPalms::Wizard::Result r;
+        r.state.profileName = QStringLiteral("FirstRun");
+        // All-local profile: RawFiles rows produce no persisted mappings.
+        for (const auto &pid : { QStringLiteral("calendar"),
+                                  QStringLiteral("contacts"),
+                                  QStringLiteral("memo"),
+                                  QStringLiteral("todo") }) {
+            WildPalms::Wizard::MappingSpec m;
+            m.pluginId = pid;
+            m.kind     = WildPalms::Wizard::TargetKind::RawFiles;
+            r.state.mappings.append(m);
+        }
+        return r;
+    });
+
+    const QString picked = w.runStartupForTest();
+
+    const auto entries = w.profileRegistryForTest()->entries();
+    QCOMPARE(entries.size(), 1);
+    QCOMPARE(entries.first().name, QStringLiteral("FirstRun"));
+    QCOMPARE(picked, entries.first().path);
+    QCOMPARE(w.currentProfileIdForTest(), entries.first().id);
+
+    // The created profile is NOT hollow: name + sync folder were persisted
+    // from the wizard result.
+    Profile prof(entries.first().path);
+    QVERIFY(prof.load());
+    QCOMPARE(prof.name(), QStringLiteral("FirstRun"));
 }
 
 void TstKf6MainWindowStartup::validLastActiveAutoLoads()
@@ -63,13 +103,17 @@ void TstKf6MainWindowStartup::validLastActiveAutoLoads()
     reg->setLastActive(entry.id);
     QVERIFY(QDir(entry.path).exists());
 
-    TestableMainWindow w;
+    KF6MainWindow w;
     w.setProfileRegistryForTest(std::move(reg));
-    w.stopgapReturn = QString();   // stopgap should never be invoked
+    int wizardRuns = 0;
+    w.setRunProfileWizardForTest([&wizardRuns]() {
+        ++wizardRuns;   // must never be reached — a profile exists
+        return WildPalms::Wizard::Result{};
+    });
 
     const QString picked = w.runStartupForTest();
 
-    QCOMPARE(w.stopgapInvocations, 0);
+    QCOMPARE(wizardRuns, 0);
     QCOMPARE(picked, entry.path);
 }
 
@@ -96,13 +140,17 @@ void TstKf6MainWindowStartup::staleLastActiveAutoLoadsMostRecent()
     reg = std::make_unique<WildPalms::Runtime::ProfileRegistry>(cfg);
     reg->setDefaultRoot(tmp.path());
 
-    TestableMainWindow w;
-    w.stopgapReturn = QString();  // should NOT be reached
+    KF6MainWindow w;
+    int wizardRuns = 0;
+    w.setRunProfileWizardForTest([&wizardRuns]() {
+        ++wizardRuns;   // must never be reached — a profile exists
+        return WildPalms::Wizard::Result{};
+    });
     w.setProfileRegistryForTest(std::move(reg));
 
     const QString picked = w.runStartupForTest();
 
-    QCOMPARE(w.stopgapInvocations, 0);
+    QCOMPARE(wizardRuns, 0);
     QCOMPARE(picked, b.path);
 }
 

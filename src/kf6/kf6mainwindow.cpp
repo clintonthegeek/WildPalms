@@ -1651,11 +1651,17 @@ void KF6MainWindow::onNewProfile()
     const auto r = runProfileWizard();
     if (r.state.profileName.isEmpty()) return;   // cancelled
 
+    createAndLoadProfileFromWizard(r);
+}
+
+bool KF6MainWindow::createAndLoadProfileFromWizard(
+    const WildPalms::Wizard::Result &r)
+{
     const auto entry = m_profileRegistry->registerNew(r.state.profileName);
     if (!entry.isValid()) {
         QMessageBox::critical(this, i18n("New Profile"),
             i18n("Could not create profile."));
-        return;
+        return false;
     }
 
     if (!writeWizardResultToProfile(entry.path, r)) {
@@ -1664,10 +1670,11 @@ void KF6MainWindow::onNewProfile()
         // Best-effort rollback per F.1c spec §4.5.
         m_profileRegistry->unregister(entry.id);
         QDir(entry.path).removeRecursively();
-        return;
+        return false;
     }
 
     loadProfile(entry.path);
+    return true;
 }
 
 WildPalms::Wizard::Result KF6MainWindow::runProfileWizard()
@@ -1868,36 +1875,17 @@ QString KF6MainWindow::resolveStartupProfile()
             return e.path;
         }
     }
-    // Empty registry (or every entry stale) — F.1a name-prompt stopgap.
-    const QString picked = showProfilePickerStopgap();
-    if (!picked.isEmpty()) {
-        loadProfile(picked);
-        return picked;
-    }
-    return QString();
-}
-
-QString KF6MainWindow::showProfilePickerStopgap()
-{
-    QMessageBox::information(this,
-        i18n("No Profile"),
-        i18n("No WildPalms profile has been created yet.\n"
-             "Let's create one to get started."));
-
-    bool ok = false;
-    const QString name = QInputDialog::getText(this,
-        i18n("New Profile"),
-        i18n("Profile name:"),
-        QLineEdit::Normal, QString(), &ok);
-    if (!ok || name.trimmed().isEmpty()) return QString();
-
-    const auto e = m_profileRegistry->registerNew(name.trimmed());
-    if (!e.isValid()) {
-        QMessageBox::critical(this, i18n("New Profile"),
-            i18n("Could not create profile."));
+    // Empty registry (or every entry stale) — first-run onboarding.
+    // Shakedown F1: this used to be the bare name-prompt stopgap, which
+    // created hollow profiles (no accounts, no bindings) and — combined
+    // with F11 — set users up for a dashboard that hung in "Syncing…".
+    // Route through the real accounts-first wizard instead.
+    const auto r = runProfileWizard();
+    if (r.state.profileName.isEmpty())
+        return QString();   // user cancelled the wizard
+    if (!createAndLoadProfileFromWizard(r))
         return QString();
-    }
-    return e.path;
+    return m_currentProfile ? m_currentProfile->syncFolderPath() : QString();
 }
 
 void KF6MainWindow::setProfileRegistryForTest(
@@ -1956,12 +1944,27 @@ void KF6MainWindow::onProfileSettings()
 
 // ========== Sync Operations ==========
 
+bool KF6MainWindow::reportSyncAlreadyRunning(const QString &opLabel)
+{
+    if (!m_palmRuntime || !m_palmRuntime->isSyncRunning())
+        return false;
+    // Shakedown F3/F11: a second sync click while a run is in flight used
+    // to warn console-only and reset the conduit chips. Make it a
+    // user-visible no-op instead.
+    m_logWidget->logWarning(
+        i18n("%1 ignored — a sync is already running", opLabel));
+    statusBar()->showMessage(i18n("A sync is already running"), 4000);
+    return true;
+}
+
 void KF6MainWindow::onHotSync()
 {
     if (!m_palmRuntime || !m_palmRuntime->isDeviceConnected()) {
         m_logWidget->logError(i18n("HotSync: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("HotSync")))
+        return;
     auto *watcher = new QFutureWatcher<WildPalms::Runtime::PalmRunResult>(this);
     connect(watcher, &QFutureWatcher<WildPalms::Runtime::PalmRunResult>::finished,
             watcher, &QObject::deleteLater);
@@ -1974,6 +1977,8 @@ void KF6MainWindow::onFullSync()
         m_logWidget->logError(i18n("FullSync: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("FullSync")))
+        return;
     auto *watcher = new QFutureWatcher<WildPalms::Runtime::PalmRunResult>(this);
     connect(watcher, &QFutureWatcher<WildPalms::Runtime::PalmRunResult>::finished,
             watcher, &QObject::deleteLater);
@@ -1986,6 +1991,8 @@ void KF6MainWindow::onCopyPalmToPC()
         m_logWidget->logError(i18n("CopyPalmToPC: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("Copy Palm → PC")))
+        return;
     auto *watcher = new QFutureWatcher<WildPalms::Runtime::PalmRunResult>(this);
     connect(watcher, &QFutureWatcher<WildPalms::Runtime::PalmRunResult>::finished,
             watcher, &QObject::deleteLater);
@@ -1999,6 +2006,8 @@ void KF6MainWindow::onClobberPalmFromPC()
             m_logWidget->logError(i18n("Clobber Palm from PC: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("Clobber Palm from PC")))
+        return;
 
     WildPalms::Runtime::ClobberDialog::DomainMappings dm;
     for (const auto &domain : {QStringLiteral("calendar"),
@@ -2031,6 +2040,8 @@ void KF6MainWindow::onBackup()
         m_logWidget->logError(i18n("Backup: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("Backup")))
+        return;
     auto *watcher = new QFutureWatcher<WildPalms::Runtime::PalmRunResult>(this);
     connect(watcher, &QFutureWatcher<WildPalms::Runtime::PalmRunResult>::finished,
             watcher, &QObject::deleteLater);
@@ -2043,6 +2054,8 @@ void KF6MainWindow::onRestore()
         m_logWidget->logError(i18n("Restore: no Palm device connected"));
         return;
     }
+    if (reportSyncAlreadyRunning(i18n("Restore")))
+        return;
     if (QMessageBox::question(this, i18n("Restore"),
             i18n("Restore is destructive. All Palm records not in the backup WILL BE DELETED. Continue?"),
             QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) {
@@ -2056,8 +2069,28 @@ void KF6MainWindow::onRestore()
 
 void KF6MainWindow::onChangeSyncFolder()
 {
-    const QString picked = showProfilePickerStopgap();
-    if (!picked.isEmpty()) loadProfile(picked);
+    if (!m_currentProfile) {
+        m_logWidget->logWarning(i18n("No profile loaded"));
+        return;
+    }
+
+    // Shakedown F15: this menu item used to invoke the F1 stopgap
+    // name-prompt (creating a hollow new profile!) instead of picking a
+    // folder. Show a real directory picker and persist the choice.
+    const QString picked = QFileDialog::getExistingDirectory(this,
+        i18n("Change Sync Folder"),
+        m_currentProfile->syncFolderPath().isEmpty()
+            ? QDir::homePath() : m_currentProfile->syncFolderPath());
+    if (picked.isEmpty() || picked == m_currentProfile->syncFolderPath())
+        return;
+
+    m_currentProfile->setSyncFolderPath(picked);
+    if (!m_currentProfile->save()) {
+        m_logWidget->logError(i18n("Could not save the new sync folder"));
+        return;
+    }
+    m_logWidget->logInfo(i18n("Sync folder changed to %1 — reloading profile", picked));
+    loadProfile(m_currentProfile->syncFolderPath());
 }
 
 void KF6MainWindow::onOpenSyncFolder()

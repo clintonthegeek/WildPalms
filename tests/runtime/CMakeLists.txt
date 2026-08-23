@@ -1043,6 +1043,29 @@ set_tests_properties(tst_palm_runtime_emits_sync_completed PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
 
+# Shakedown F3/F11: runStarted/runFinished pairing on the early-return
+# paths + re-entrant sync rejection (isSyncRunning).
+add_executable(tst_palm_runtime_run_lifecycle
+    tst_palm_runtime_run_lifecycle.cpp)
+target_link_libraries(tst_palm_runtime_run_lifecycle
+    PRIVATE
+        Qt::Core
+        Qt::Test
+        PalmDeviceAccessLib
+        WildPalmsRuntime
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,Kalburator::Sync>
+        WildPalmsPalmDevice
+        WildPalmsCore
+        pisock
+        bluetooth
+        usb
+)
+add_test(NAME tst_palm_runtime_run_lifecycle
+    COMMAND tst_palm_runtime_run_lifecycle)
+set_tests_properties(tst_palm_runtime_run_lifecycle PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
 # Clobber-sync Task 10: PalmRuntime::clobberSync entry point.
 # Smokes the SyncEngine dispatch path with ExecutionOverride::clobber=true.
 # Mirrors tst_palm_runtime_modes' link set (full Palm stack + WHOLE_ARCHIVE

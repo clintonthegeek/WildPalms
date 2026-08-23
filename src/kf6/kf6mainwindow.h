@@ -109,11 +109,6 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
 
-    /// Test seam: F.1a stopgap profile-picker UI. Production override
-    /// shows a QMessageBox / QInputDialog; tests stub it to return a
-    /// pre-set path (or empty for cancel).
-    virtual QString showProfilePickerStopgap();
-
     /// Test seam: pops the Forget confirm dialog. Production override
     /// runs the real QDialog (see kf6mainwindow.cpp); tests override
     /// to return preset values. Returns true if user clicked Forget;
@@ -238,6 +233,16 @@ private:
     virtual WildPalms::Wizard::Result runProfileWizard();
     bool writeWizardResultToProfile(const QString &path,
                                     const WildPalms::Wizard::Result &r);
+    /// Shared tail of "New Profile…" and the first-run path (shakedown F1):
+    /// register a profile for the wizard Result, persist it, and load it.
+    /// Returns false (with cleanup done) if registration or persistence
+    /// failed; true also means loadProfile() has run.
+    bool createAndLoadProfileFromWizard(const WildPalms::Wizard::Result &r);
+
+    /// Shakedown F3/F11: re-entrant sync clicks are a user-visible no-op.
+    /// Logs to the log dock + status bar and returns true when a sync is
+    /// already in flight (caller then returns without dispatching).
+    bool reportSyncAlreadyRunning(const QString &opLabel);
 
     // KPageWidget layout
     KPageWidget *m_pageWidget;

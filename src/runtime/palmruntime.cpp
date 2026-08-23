@@ -827,16 +827,33 @@ QVector<PalmRuntime::ConduitDescriptor> PalmRuntime::conduitDescriptors() const
     return out;
 }
 
-static QFuture<WildPalms::Runtime::PalmRunResult> makeSuccessFuture() {
-    QPromise<WildPalms::Runtime::PalmRunResult> p;
-    auto f = p.future();
-    p.start();
-    WildPalms::Runtime::PalmRunResult r;
-    r.success = true;
+// F3/F11 shakedown remediation helpers. Every public entry that emits
+// runStarted must either dispatch (the engine watchers finalize with exactly
+// one runFinished) or emit its own matching runFinished before returning —
+// a runStarted with no runFinished leaves the dashboard in its Syncing state
+// forever.
+static PalmRunResult makeRejectedResult(const QString &message) {
+    PalmRunResult r;
+    r.success      = false;
+    r.errorMessage = message;
     r.startTime = r.endTime = QDateTime::currentDateTimeUtc();
-    p.addResult(std::move(r));
-    p.finish();
-    return f;
+    return r;
+}
+
+static QFuture<PalmRunResult> makeReadyFuture(PalmRunResult r) {
+    return QtFuture::makeReadyValueFuture(std::move(r));
+}
+
+// Re-entrancy backstop shared by the public entry points (hotSync/fullSync/
+// runMirror/clobberSync). The UI guards on isSyncRunning() first; this keeps
+// programmatic callers from clobbering m_syncPromise/m_syncIds/m_syncAccum
+// and stranding an in-flight loop's future.
+static bool syncAlreadyRunning_(const PalmRuntime *self) {
+    if (!self->isSyncRunning())
+        return false;
+    qWarning() << "[PalmRuntime] sync request ignored: a sync is already "
+                  "in flight — rejecting the re-entrant call";
+    return true;
 }
 
 QFuture<PalmRunResult> PalmRuntime::runAllMappings(int maxPasses, bool skipUnchanged)
@@ -846,18 +863,27 @@ QFuture<PalmRunResult> PalmRuntime::runAllMappings(int maxPasses, bool skipUncha
         if (m.enabled)
             ids.append(m.id);
     }
-    if (ids.isEmpty())
-        return makeSuccessFuture();
+    if (ids.isEmpty()) {
+        // F11: the caller already emitted runStarted — answer it, or the
+        // dashboard never leaves its Syncing state.
+        const auto r = makeRejectedResult(QStringLiteral(
+            "No enabled sync targets — nothing to sync"));
+        Q_EMIT runFinished(r);
+        Q_EMIT syncCompleted();
+        return makeReadyFuture(r);
+    }
 
     // Re-entrancy guard: a multi-pass loop is already in flight (m_syncPromise
     // is set until the loop finalizes). Starting another run here would clobber
     // m_syncPromise/m_syncIds/m_syncAccum and strand the first caller's future.
-    // The engine also rejects concurrent runs; the UI should disable the sync
-    // actions during a run (follow-up). Reject cleanly without disturbing state.
+    // The public entry points pre-guard on isSyncRunning() without emitting
+    // runStarted; this backstop deliberately emits NO signals — the in-flight
+    // run owns the current runStarted/runFinished pair.
     if (m_syncPromise) {
         qWarning() << "[PalmRuntime] runAllMappings() called while a sync loop is "
                       "already in flight — ignoring the re-entrant request";
-        return makeSuccessFuture();
+        return makeReadyFuture(makeRejectedResult(
+            QStringLiteral("A sync is already running")));
     }
 
     // P2 Investigation (2026-05-27): pauseTickle() rationale
@@ -1024,14 +1050,29 @@ void PalmRuntime::dispatchSyncPass_()
 }
 
 QFuture<PalmRunResult> PalmRuntime::hotSync() {
+    if (syncAlreadyRunning_(this))
+        return makeReadyFuture(makeRejectedResult(
+            QStringLiteral("A sync is already running")));
+
     Q_EMIT runStarted(QStringLiteral("HotSync"));
-    if (m_mappings.isEmpty())
-        return makeSuccessFuture();
+    if (m_mappings.isEmpty()) {
+        // F11: this early return used to strand the runStarted — the
+        // dashboard spun in "Syncing…" forever. Emit the matching pair.
+        const auto r = makeRejectedResult(QStringLiteral(
+            "No sync targets configured — nothing to sync"));
+        Q_EMIT runFinished(r);
+        Q_EMIT syncCompleted();
+        return makeReadyFuture(r);
+    }
     return runAllMappings(/*maxPasses=*/3, /*skipUnchanged=*/true);
 }
 
 QFuture<PalmRunResult> PalmRuntime::fullSync()
 {
+    if (syncAlreadyRunning_(this))
+        return makeReadyFuture(makeRejectedResult(
+            QStringLiteral("A sync is already running")));
+
     Q_EMIT runStarted(QStringLiteral("FullSync"));
     // Clear all baselines so the engine treats this as a fresh first sync.
     for (const auto &m : m_mappings)
@@ -1043,14 +1084,24 @@ QFuture<PalmRunResult> PalmRuntime::fullSync()
 
 QFuture<PalmRunResult> PalmRuntime::runMirror(MirrorDir dir, const QString &modeLabel)
 {
+    if (syncAlreadyRunning_(this))
+        return makeReadyFuture(makeRejectedResult(
+            QStringLiteral("A sync is already running")));
+
     Q_EMIT runStarted(modeLabel);
 
     QList<QString> ids;
     for (const auto &m : m_mappings) {
         if (m.enabled) ids.append(m.id);
     }
-    if (ids.isEmpty())
-        return makeSuccessFuture();
+    if (ids.isEmpty()) {
+        // F11: emit the matching runStarted/runFinished pair (see hotSync).
+        const auto r = makeRejectedResult(QStringLiteral(
+            "No sync targets configured — nothing to sync"));
+        Q_EMIT runFinished(r);
+        Q_EMIT syncCompleted();
+        return makeReadyFuture(r);
+    }
 
     using Direction = Kalburator::Sync::ExecutionOverride::Direction;
     Kalburator::Sync::ExecutionOverride ov;
@@ -1147,10 +1198,21 @@ QFuture<PalmRunResult> PalmRuntime::copyPalmToPC()
 QFuture<PalmRunResult> PalmRuntime::clobberSync(const QList<QString> &mappingIds)
 {
     const auto kLabel = QStringLiteral("ClobberSync");
+
+    if (syncAlreadyRunning_(this))
+        return makeReadyFuture(makeRejectedResult(
+            QStringLiteral("A sync is already running")));
+
     Q_EMIT runStarted(kLabel);
 
-    if (mappingIds.isEmpty())
-        return makeSuccessFuture();
+    if (mappingIds.isEmpty()) {
+        // F11: emit the matching runStarted/runFinished pair (see hotSync).
+        const auto r = makeRejectedResult(QStringLiteral(
+            "No Palm databases selected — nothing to clobber"));
+        Q_EMIT runFinished(r);
+        Q_EMIT syncCompleted();
+        return makeReadyFuture(r);
+    }
 
     Kalburator::Sync::SyncRequest req;
     req.mappingIds = mappingIds;
