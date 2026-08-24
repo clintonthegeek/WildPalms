@@ -298,3 +298,36 @@ launching → detection fires on startup without pressing HotSync.
 `perConduitStats_notFoldedUnderCalendar` (a seeded record crossing the
 palm→hub leg lands under its real backend key with created==1; the
 "calendar" key must not appear). Full suite: **133/133 pass.**
+
+---
+
+## Cycle 8 — local-folder accounts are configurable (F2)
+
+**Commit:** this one.
+
+- New `LocalFolderConfigWidget` (`src/runtime/`, QWidget +
+  `IProviderConfigWidget`): pick folders via a directory dialog, tag each
+  as Calendar / Contacts / Memos / Tasks, remove entries. Entries
+  round-trip through the generic AccountFormWidget bridge, preserving
+  id/displayName; an empty-but-saved account now yields a default display
+  name instead of failing validity.
+- `LocalFolderProvider::createConfigWidget()` returns the widget (was
+  nullptr — the dead end).
+- Provider fix surfaced while wiring it: entry domain doubles as the
+  shape domain ("note" → Markdown backend), but CollectionInfo::type must
+  be what `PimPlugin::matchesCollection` expects. "note" entries now type
+  collections "memos", "todo" → "todos"; otherwise the wizard's dropdowns
+  could never match them.
+
+### Tests
+
+`tst_localfolder_provider`: widget round-trip (entries + id/displayName +
+default displayName), memo/todo type exposure for conduit matching. The
+pre-existing assertion expecting the broken `"note"` type was updated to
+the fixed behavior. Full suite: **133/133 pass.**
+
+### Verification notes for user testing
+
+Add Account → "Local folder" → Add folder… (pick dir, pick kind) → Test
+Connection should report "Connected"; the folder then appears in the
+wizard's sync-target dropdowns under its kind.

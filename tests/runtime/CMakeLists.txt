@@ -1261,6 +1261,7 @@ target_link_libraries(tst_localfolder_provider
     PRIVATE
         Qt::Core
         Qt::Test
+        Qt::Widgets
         PalmDeviceAccessLib
         $<LINK_LIBRARY:WHOLE_ARCHIVE,Kalburator::Sync>
         WildPalmsCore

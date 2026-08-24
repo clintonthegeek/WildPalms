@@ -1,4 +1,5 @@
 #include "localfolderprovider.h"
+#include "localfolderconfigwidget.h"
 
 #include <markdownfilesbackend.h>
 #include <rawfilesbackend.h>
@@ -7,6 +8,20 @@
 #include <QFutureInterface>
 
 namespace WildPalms::Runtime {
+
+namespace {
+// Shakedown F2: the entry domain doubles as the shape domain ("note" →
+// Markdown), but CollectionInfo::type must match what PimPlugin::
+// matchesCollection expects, which differs for memo/todo.
+QString collectionTypeForDomain(const QString &domain)
+{
+    if (domain == QLatin1String("note"))
+        return QStringLiteral("memos");
+    if (domain == QLatin1String("todo"))
+        return QStringLiteral("todos");
+    return domain;
+}
+}  // namespace
 
 LocalFolderProvider::LocalFolderProvider(QObject *parent)
     : Kalburator::Sync::IProvider(parent) {}
@@ -47,7 +62,7 @@ QFuture<bool> LocalFolderProvider::connect()
         Kalburator::Sync::CollectionInfo ci;
         ci.id       = e.collectionId;
         ci.name     = QDir(e.path).dirName();
-        ci.type     = e.domain;
+        ci.type     = collectionTypeForDomain(e.domain);
         ci.readOnly = false;
         m_collections.append(ci);
     }
@@ -110,10 +125,10 @@ LocalFolderProvider::createBackends()
 
 QWidget *LocalFolderProvider::createConfigWidget(QWidget *parent)
 {
-    // Minimal v1: the lib's ProviderConfigDialog tolerates a null widget;
-    // a folder-list editor widget ships with sub-project C's source UI.
-    Q_UNUSED(parent);
-    return nullptr;
+    // Shakedown F2: used to return nullptr — "Local folder" was a config
+    // dead end (an empty account that failed forever with "No folders
+    // configured", and no UI to add folder entries).
+    return new LocalFolderConfigWidget(parent);
 }
 
 } // namespace WildPalms::Runtime

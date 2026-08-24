@@ -137,6 +137,8 @@ add_library(PalmDeviceAccessLib STATIC
     # it needs AUTOMOC, which this target already has.
     localfolderprovider.h
     localfolderprovider.cpp
+    localfolderconfigwidget.h
+    localfolderconfigwidget.cpp
     localfoldercontribution.h
 )
 target_include_directories(PalmDeviceAccessLib
