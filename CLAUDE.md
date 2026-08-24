@@ -6,25 +6,50 @@ For deeper history check `~/dev/CLAUDE.md` (the global dev-root instructions) an
 
 ---
 
-## Current branch and state (as of 2026-08-22)
+## Current branch and state (as of 2026-08-23)
 
-**Branch:** local `main` at `7a4d564` ("port PalmCalendarBackend to libkalburator's
-batch itemsFetched signal"). `main` is the ONLY working branch; linear-main convention.
-**Working tree is dirty with this session's uncommitted work:** ~10 API ports for
-libkalburator v0.77→v1.01 drift (LocalFolderProvider `createBackends()`,
-`PalmChangeDetection.primeRevisionCache` demoted to helper, four test files),
-pin bump v1.00→v1.01 in `CMakeLists.txt`, two O55/O56 handoff docs (+Resolution
-sections), and `docs/2026-08-22-first-run-simulated-shakedown.md`. Commit+push pending user go-ahead.
+**Branch:** local `main` at `f1670cc` ("build: resolve libkalburator
+test-fixture paths via WILDPALMS_LIBKALBURATOR_DIR"). `main` is the ONLY
+working branch; linear-main convention. **Working tree is clean.**
 **libkalburator pin:** tag **`v1.01`** (`CMakeLists.txt`; commit `b847ab8` on main).
-v1.00 = O55 record-id aliasing + identity-conflict fail-loud guard (fixes hub churn);
-v1.01 = O56 anchor-stable aliasing + all-or-nothing unresolved-conflict write hold.
 Re-pin only forward (newer tags). Build against local checkout via
 `-DWILDPALMS_LIBKALBURATOR_SOURCE_DIR=~/dev/libkalburator`.
 **Build dir convention:** legacy `build/` (no `CMakePresets.json`). Stray dirs `build-dev/`, `build-c/`, `build-fetchcontent/`, `build-appimage/` may exist on disk from prior experiments; ignore unless cleaning house.
-**ctest:** **130/130 pass** (as of pin v1.01, 2026-08-22). The device-e2e integration test runs GREEN
-against a POSE64 emulator via `ctest -L device-e2e` with `WILDPALMS_POSE64_BIN` +
+**ctest:** **133/133 pass** (as of 2026-08-23, post-UX-shakedown cycles).
+The device-e2e integration test runs GREEN against a POSE64 emulator via
+`ctest -L device-e2e` with `WILDPALMS_POSE64_BIN` +
 `WILDPALMS_PALM_BASELINE_PSF` set.
 **Stray branches** (pre-existing, not ours): `task8-three-tier-sync`, two `worktree-agent-*`.
+
+### UX shakedown remediation — EXECUTED 2026-08-23 (cycles 1–8)
+
+The F1–F18 remediation plan from the shakedown doc was executed in one
+autonomous session; running log with per-cycle details + user-testing
+hooks: **`docs/2026-08-23-ux-shakedown-remediation.md`.**
+
+Done (WP-side): F1 first-run routes through the real wizard (stopgap
+deleted); F3/F11 runStarted/runFinished pairing + re-entrant sync is a
+visible no-op (`PalmRuntime::isSyncRunning`); F10 conflict resolutions
+bridge into a NEW per-profile engine store `.state/sync-conflicts.db`
+(`applyConflictResolutionsRequested` finally wired); F12 engine
+transcodingWarning/syncPassStarted/per-mapping failures reach the Log dock
+via now-live `runLog`; F13 cancel tone; F14 lastSyncTime stamping; F15
+Navigate Ctrl+1..5 wired, Review Conflicts enabled by live pending count,
+Change Sync Folder is a real picker; F16 Quit actually quits (tray-hiding
+explains once, sync-in-progress close guard); F5 wizard hint honesty; F6/F7
+pre-launch device enumeration + HotSync-button guidance + no-profile
+connect dialog; F17 per-conduit stats + run summary counts; F18 title;
+F8 reconcile failures surfaced; F9 pi_bind errno hints; F2 local-folder
+config widget (+ note/todo → memos/todos type fix). Also: lib test-fixture
+paths resolve via `WILDPALMS_LIBKALBURATOR_DIR` (no more flat-sibling
+assumption).
+
+Still open from the shakedown: **F4** (Akonadi contentTypes — handoff doc
+written, waiting on lib: `docs/2026-08-23-libkalburator-akonadi-
+contenttypes-handoff.md`) and F9's second half (finishConnect
+BlockingQueued GUI stalls — architectural, deferred). User smoke-testing
+of all eight cycles still pending (see verification hooks in each cycle's
+doc section).
 
 ### First-run simulated shakedown — DOCUMENTED 2026-08-22
 
@@ -361,49 +386,18 @@ it drops information on the floor and mis-steers new users. Priority is now
 UX-integrity first, test-matrix breadth second. Items roughly ordered by
 combined urgency / preparedness; user picks.
 
-### 0. NEXT — UX shakedown remediation (F-numbers ref the shakedown doc)
+### 0. UX shakedown remediation — DONE WP-side (2026-08-23); smoke tests pending
 
-**Tier 1 — onboarding + run-lifecycle integrity (compound into the worst
-first-run outcome):**
-- **F1:** route the startup stopgap (`showProfilePickerStopgap`,
-  `kf6mainwindow.cpp:1880`) through `runProfileWizard()` instead of the bare
-  name prompt — hollow profiles are the root of the worst demo path.
-- **F3/F11:** emit `runFinished` on `PalmRuntime::hotSync`'s empty-mappings
-  early return (`palmruntime.cpp:1026-1031`) and make re-entrant sync clicks
-  a user-visible no-op (`:857-861`). Currently the dashboard spins forever.
-
-**Tier 2 — conflict honesty:**
-- **F10:** bridge `ConflictReviewDialog::applyResolutionsRequested`
-  (`widgets/dialogs/conflictreviewdialog.cpp:31`) into PalmRuntime's
-  `SyncConflictStore` accessor (`palmruntime.cpp:725-729`) so resolutions
-  actually replay on the next sync — or hide all conflict UI until this
-  exists. Also consider installing a ConflictManager or surfacing pending-
-  conflict counts per mapping.
-
-**Tier 3 — lib handoff:**
-- **F4:** Akonadi provider never populates `contentTypes` and types every
-  collection `"calendar"` → Tasks unbindable via wizard, tasks-only
-  collections over-match Calendar (lib `akonadiprovider.cpp:126-141`;
-  WP matcher `src/plugins/pimplugin.cpp:8-29`). Write handoff doc per
-  cross-repo discipline (precedent: `2026-06-09-libkalburator-collectioninfo-
-  contenttypes-handoff.md`, same surface, DAV side).
-
-**Tier 4 — feedback-honesty batch (small, independent):**
-- **F12:** bridge engine `transcodingWarning`/qWarning/qInfo into the Log
-  dock; start emitting the never-emitted `PalmRuntime::runLog`.
-- **F13:** report cancellation as cancelled, not error.
-- **F14:** call `Profile::setLastSyncTime` at run completion ("Last sync:
-  Never" forever today).
-- **F15:** remove/fix dead UI: Navigate menu (never-connected signals),
-  permanently-disabled "Review Conflicts...", "Change Sync Folder..." invoking
-  the profile-name prompt.
-- **F16:** quit confirmation / tray explanation (File→Quit silently hides to
-  tray by default).
-
-**Tier 5 — polish queue:** F2 (local-folder config widget), F5 (empty-binding
-hint suppression), F6/F7 (device-detection guidance + initial enumeration),
-F8/F9 (silent reconcile failures, opaque bind errors), F17 (post-sync counts;
-Patchbay Part-2 overlap), F18 (window title).
+All eight cycles executed — see "UX shakedown remediation" above and
+`docs/2026-08-23-ux-shakedown-remediation.md` for per-cycle details and
+user-testing hooks. **Remaining from the F1–F18 list:** F4 (lib handoff
+written, awaiting libkalburator:
+`docs/2026-08-23-libkalburator-akonadi-contenttypes-handoff.md`) and F9's
+architectural second half (finishConnect BlockingQueued GUI stalls).
+**Next actions:** user smoke-tests each cycle's verification hooks, then
+priority shifts back to the POSE64 Phase 2 fidelity matrix below (which
+can pin several of these behaviors) and the device-less hub↔remote sync
+entry point (item 2).
 
 ### POSE64 e2e harness: Phase 2 (fidelity matrix) + Phase 3 (three-tier)
 
