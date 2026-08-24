@@ -199,7 +199,11 @@ void ConnectionWorker::doConnect()
         if (m_cancelRequested) {
             emit connectionFailed("Connection cancelled");
         } else {
-            QString error = QString("No HotSync data detected on any of %1 port(s)")
+            // Shakedown F6: plugging USB without pressing the HotSync
+            // button lands here — tell the user what to do about it.
+            QString error = QString(
+                "No HotSync data detected on any of %1 port(s). "
+                "Press the HotSync button on your Palm, then try again.")
                 .arg(m_devicePaths.size());
             qWarning() << "[ConnectionWorker]" << error;
             emit connectionFailed(error);

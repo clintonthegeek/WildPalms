@@ -76,7 +76,81 @@ bool PalmDeviceMonitor::start()
 
     m_running = true;
     qDebug() << "PalmDeviceMonitor: started monitoring for Palm USB devices";
+
+    // Shakedown F7: udev only reports events from now on. A Palm that was
+    // already plugged in before launch would never be detected. Scan what
+    // is already present.
+    enumerateExistingDevices();
+
     return true;
+}
+
+void PalmDeviceMonitor::enumerateExistingDevices()
+{
+    if (!m_udev) {
+        return;
+    }
+
+    struct udev_enumerate *enumerate = udev_enumerate_new(m_udev);
+    if (!enumerate) {
+        return;
+    }
+
+    udev_enumerate_add_match_subsystem(enumerate, "tty");
+    udev_enumerate_scan_devices(enumerate);
+
+    // Group tty ports by their owning Palm USB device (syspath -> serial).
+    QMap<QString, QPair<QString, QStringList>> found;
+    struct udev_list_entry *entry;
+    udev_list_entry_foreach(entry, udev_enumerate_get_list_entry(enumerate)) {
+        const char *entryPath = udev_list_entry_get_name(entry);
+        struct udev_device *ttyDev = udev_device_new_from_syspath(m_udev, entryPath);
+        if (!ttyDev) {
+            continue;
+        }
+
+        struct udev_device *parent = ttyDev;
+        while (parent) {
+            const char *parentSubsystem = udev_device_get_subsystem(parent);
+            if (parentSubsystem && qstrcmp(parentSubsystem, "usb") == 0) {
+                const char *devtype = udev_device_get_devtype(parent);
+                if (devtype && qstrcmp(devtype, "usb_device") == 0) {
+                    const char *vendor = udev_device_get_sysattr_value(parent, "idVendor");
+                    if (vendor && qstrcmp(vendor, PALM_VENDOR_ID) == 0) {
+                        const QString syspath =
+                            QString::fromLatin1(udev_device_get_syspath(parent));
+                        const char *serial = udev_device_get_sysattr_value(parent, "serial");
+                        const QString serialStr =
+                            serial ? QString::fromLatin1(serial) : QString();
+                        const char *devnode = udev_device_get_devnode(ttyDev);
+                        if (devnode) {
+                            found[syspath].first = serialStr;
+                            found[syspath].second.append(
+                                QString::fromLatin1(devnode));
+                        }
+                    }
+                    break;
+                }
+            }
+            parent = udev_device_get_parent(parent);
+        }
+
+        udev_device_unref(ttyDev);
+    }
+
+    udev_enumerate_unref(enumerate);
+
+    for (auto it = found.constBegin(); it != found.constEnd(); ++it) {
+        if (m_detectedDevices.contains(it.key())) {
+            continue;   // already tracked via a live udev event
+        }
+        m_detectedDevices.insert(it.key(), it.value().first);
+        QStringList ports = it.value().second;
+        ports.sort();
+        qDebug() << "PalmDeviceMonitor: pre-existing Palm device at" << it.key()
+                 << "ports:" << ports << "serial:" << it.value().first;
+        Q_EMIT palmDetected(ports, it.value().first);
+    }
 }
 
 void PalmDeviceMonitor::stop()

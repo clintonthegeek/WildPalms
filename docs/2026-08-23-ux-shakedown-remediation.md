@@ -249,3 +249,29 @@ Full suite: **133/133 pass.**
 `tst_targetpickerpage` gains `hintShownWhenAccountsNotYetConnected`
 (all four conduit rows show the new hint for an unconnected account).
 Full suite: **133/133 pass.**
+
+---
+
+## Cycle 6 — device detection guidance + pre-launch enumeration (F6, F7)
+
+**Commit:** this one.
+
+- **F7:** `PalmDeviceMonitor::enumerateExistingDevices()` — `start()` now
+  scans already-present tty devices for Palm hardware (vendor 0830,
+  grouped by owning USB device, serial preserved) and emits
+  `palmDetected` for each hit. A Palm plugged in before app launch is no
+  longer invisible until replugged.
+- **F7b:** manual Device → Connect with no profile used to fail
+  console-only ("Cannot connect: PalmRuntime not initialized") while the
+  action stayed enabled. It now logs AND shows a dialog pointing at
+  File → New Profile….
+- **F6:** the plug-in-without-HotSync-button timeout headline now carries
+  guidance: "No HotSync data detected on any of N port(s). Press the
+  HotSync button on your Palm, then try again."
+
+### Tests
+
+No new unit tests (udev enumeration requires kernel state; the e2e
+device harness is the right future home — Phase-2 matrix can pin it).
+Full suite: **133/133 pass.** Hardware verification: plug a Palm before
+launching → detection fires on startup without pressing HotSync.

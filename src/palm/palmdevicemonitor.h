@@ -28,6 +28,11 @@ public:
     void stop();
     bool isRunning() const { return m_running; }
 
+    /// Shakedown F7: a device plugged in BEFORE start() produces no udev
+    /// "add" event, so it was never detected. This scans already-present
+    /// tty devices for Palm hardware and emits palmDetected() per hit.
+    void enumerateExistingDevices();
+
 Q_SIGNALS:
     /** Emitted when a Palm USB device is detected. Ports are all
      *  ttyUSB paths created for this device (typically 2). */

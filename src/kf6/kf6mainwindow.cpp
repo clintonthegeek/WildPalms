@@ -986,7 +986,14 @@ void KF6MainWindow::startConnectionMultiPort(const QStringList &devicePaths)
     }
 
     if (!m_palmRuntime) {
-        m_logWidget->logError(i18n("Cannot connect: PalmRuntime not initialized"));
+        // Shakedown F7: this used to be a console-only warning while the
+        // menu action stayed enabled — the user clicked Connect and
+        // nothing happened.
+        m_logWidget->logError(i18n("Cannot connect: no profile loaded"));
+        QMessageBox::information(this,
+            i18n("No Profile Loaded"),
+            i18n("Create or load a profile before connecting a Palm "
+                 "device.\n\nUse File → New Profile… to get started."));
         return;
     }
 
