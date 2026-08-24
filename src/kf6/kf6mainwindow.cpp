@@ -2407,8 +2407,26 @@ void KF6MainWindow::onPalmRunFinished(WildPalms::Runtime::PalmRunResult result)
         m_logWidget->logWarning(i18n("%1 cancelled", op));
         statusBar()->showMessage(i18n("%1 cancelled", op), 4000);
     } else if (result.success) {
-        m_logWidget->logInfo(i18n("%1 completed successfully", op));
-        statusBar()->showMessage(i18n("%1 complete", op));
+        // Shakedown F17: aggregate the per-conduit stats into a one-line
+        // summary so a completed run says what actually moved.
+        int created = 0, updated = 0, deleted = 0;
+        for (const auto &ps : result.perPluginStats) {
+            created += ps.created;
+            updated += ps.updated;
+            deleted += ps.deleted;
+        }
+        QString summary;
+        if (created || updated || deleted) {
+            QStringList parts;
+            if (created) parts << i18n("%1 created", created);
+            if (updated) parts << i18n("%1 updated", updated);
+            if (deleted) parts << i18n("%1 deleted", deleted);
+            summary = QStringLiteral(" (") + parts.join(QStringLiteral(", "))
+                      + QStringLiteral(")");
+        }
+        m_logWidget->logInfo(i18n("%1 completed successfully%2",
+                                  op, summary));
+        statusBar()->showMessage(i18n("%1 complete%2", op, summary));
 
         // Shakedown F14: stamp the profile so "Last sync" stops reading
         // "Never" forever.

@@ -246,8 +246,21 @@ void ConnectionWorker::doConnect()
     int bindResult = pi_bind(sock, activePort.toUtf8().constData());
 
     if (bindResult < 0) {
-        QString error = QString("Failed to bind to %1 (result: %2)")
-            .arg(activePort).arg(bindResult);
+        // Shakedown F9: EACCES ("can't open the port — another app or
+        // insufficient permissions") and EBUSY ("port already in use")
+        // used to collapse into one opaque "(result: -1)" line.
+        QString hint;
+        if (errno == EACCES || errno == EPERM) {
+            hint = QStringLiteral(
+                " — permission denied. Check that you are in the 'dialout' "
+                "group and no other application is using the port");
+        } else if (errno == EBUSY) {
+            hint = QStringLiteral(
+                " — the port is busy. Another HotSync or connection "
+                "manager may already be using it");
+        }
+        QString error = QString("Failed to bind to %1 (errno: %2)%3")
+            .arg(activePort).arg(errno).arg(hint);
         qWarning() << "[ConnectionWorker]" << error;
         pi_close(sock);
         emit connectionFailed(error);

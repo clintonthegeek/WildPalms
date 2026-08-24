@@ -234,8 +234,67 @@ private slots:
         QVERIFY(sawMappingFailureLine);
     }
 
-    void engineConflictStore_attachedAndFunctional()
+    void perConduitStats_notFoldedUnderCalendar()
     {
+        // Shakedown F17: perPluginStats used to fold every mapping under a
+        // hardcoded "calendar" key. The key must reflect the actual
+        // mapping's backend.
+        QTemporaryDir profileDir;
+        QVERIFY(profileDir.isValid());
+        PalmRuntime rt(profileDir.path());
+
+        auto palmBlob = std::make_unique<MockBlobBackend>();
+        {
+            CollectionInfo ci;
+            ci.id   = QStringLiteral("palm:calendar/0");
+            ci.name = QStringLiteral("Unfiled");
+            palmBlob->createCollection(ci);
+            Kalburator::Sync::BackendRecord seed;
+            seed.id          = QStringLiteral("seed-1");
+            seed.type        = QStringLiteral("event");
+            seed.displayName = QStringLiteral("Seed");
+            seed.data        = QByteArray("seed");
+            palmBlob->createRecord(QStringLiteral("palm:calendar/0"), seed);
+        }
+        rt.registerBackendInstanceForTest(QStringLiteral("palm-calendar"),
+            WildPalmsTest::BlobSyncBackendWrapper::wrap(
+                std::move(palmBlob), QStringLiteral("palm-calendar")));
+
+        auto pcBlob = std::make_unique<MockBlobBackend>();
+        {
+            CollectionInfo ci;
+            ci.id   = QStringLiteral("pc-calendar/0");
+            ci.name = QStringLiteral("PC Calendar");
+            pcBlob->createCollection(ci);
+        }
+        rt.registerBackendInstanceForTest(QStringLiteral("pc-calendar"),
+            WildPalmsTest::BlobSyncBackendWrapper::wrap(
+                std::move(pcBlob), QStringLiteral("pc-calendar")));
+
+        {
+            SyncMapping m;
+            m.id             = QStringLiteral("stats-test-mapping");
+            m.sourceBackend  = QStringLiteral("palm-calendar");
+            m.targetBackend  = QStringLiteral("pc-calendar");
+            m.sourceCalendar = QStringLiteral("palm:calendar/0");
+            m.targetCalendar = QStringLiteral("pc-calendar/0");
+            m.mode           = SyncMode::TwoWay;
+            m.enabled        = true;
+            rt.setMappingsForTest({m});
+        }
+
+        auto fut = rt.hotSync();
+        QTRY_VERIFY_WITH_TIMEOUT(fut.isFinished(), 15000);
+
+        QVERIFY(fut.result().success);
+        const auto &stats = fut.result().perPluginStats;
+        QVERIFY2(stats.contains(QStringLiteral("pc-calendar")),
+                 qPrintable(QStringList(stats.keys()).join(QStringLiteral(","))));
+        QCOMPARE(stats[QStringLiteral("pc-calendar")].created, 1);
+        QVERIFY(!stats.contains(QStringLiteral("calendar")));
+    }
+
+    void engineConflictStore_attachedAndFunctional()    {
         // Shakedown F10 prerequisite: the engine's SyncConflictStore must
         // be attached per profile so deferred conflicts persist and UI
         // resolutions can replay on the next sync.

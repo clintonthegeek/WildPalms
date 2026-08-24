@@ -275,3 +275,26 @@ No new unit tests (udev enumeration requires kernel state; the e2e
 device harness is the right future home — Phase-2 matrix can pin it).
 Full suite: **133/133 pass.** Hardware verification: plug a Palm before
 launching → detection fires on startup without pressing HotSync.
+
+---
+
+## Cycle 7 — post-sync counts + bind-error clarity (F17, F9)
+
+**Commit:** this one.
+
+- **F17:** `perPluginStats` no longer folds every mapping under a
+  hardcoded "calendar" key that nothing read. The fixpoint-loop watcher
+  now keys stats per mapping's Palm conduit (sourceBackend when it is a
+  loaded conduit, else targetBackend, else "other"), accumulated across
+  passes. `onPalmRunFinished` aggregates and reports a one-line summary —
+  "HotSync complete (3 created, 1 updated)" in log dock + status bar.
+- **F9:** pi_bind failures no longer report an opaque "(result: -1)";
+  errno is surfaced with actionable hints for EACCES/EPERM (dialout group
+  / other app) and EBUSY (port already in use).
+
+### Tests
+
+`tst_palm_runtime_run_lifecycle` gains
+`perConduitStats_notFoldedUnderCalendar` (a seeded record crossing the
+palm→hub leg lands under its real backend key with created==1; the
+"calendar" key must not appear). Full suite: **133/133 pass.**

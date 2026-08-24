@@ -1000,10 +1000,10 @@ void PalmRuntime::dispatchSyncPass_()
             results = engineFuture.resultAt(0);
 
         // Fold this pass into m_syncAccum (accumulated across all passes).
-        PalmRunResult::PluginStats stats;
         int linkLostCount = 0;
         bool anyCancelled = engineFuture.isCanceled();
-        for (const auto &sr : results) {
+        for (int i = 0; i < results.size(); ++i) {
+            const auto &sr = results[i];
             if (sr.cancelled)
                 anyCancelled = true;
             if (!sr.success && !sr.cancelled && !sr.skipped) {
@@ -1020,11 +1020,27 @@ void PalmRuntime::dispatchSyncPass_()
                     m_syncAccum.errorMessage = sr.errorMessage;
                 }
             }
-            stats.created   += sr.targetStats.created;
-            stats.updated   += sr.targetStats.updated;
-            stats.deleted   += sr.targetStats.deleted;
-            stats.unchanged += sr.targetStats.unchanged;
-            stats.errors    += (sr.success ? 0 : 1);
+            // Shakedown F17: accumulate per-conduit stats (keyed by the
+            // mapping's Palm conduit id) instead of folding every domain
+            // under a hardcoded "calendar" key that nothing read.
+            QString key;
+            if (i < m_syncIds.size()) {
+                for (const auto &m : m_mappings) {
+                    if (m.id == m_syncIds[i]) {
+                        key = isPalmConduitBackendId(m.sourceBackend)
+                                  ? m.sourceBackend : m.targetBackend;
+                        break;
+                    }
+                }
+            }
+            if (key.isEmpty())
+                key = QStringLiteral("other");
+            auto &acc = m_syncAccum.perPluginStats[key];
+            acc.created   += sr.targetStats.created;
+            acc.updated   += sr.targetStats.updated;
+            acc.deleted   += sr.targetStats.deleted;
+            acc.unchanged += sr.targetStats.unchanged;
+            acc.errors    += (sr.success ? 0 : 1);
         }
         // Layer B: collapse N "Palm link lost" errors into one summary so
         // the UI shows a single message instead of repeating the same string.
@@ -1040,15 +1056,6 @@ void PalmRuntime::dispatchSyncPass_()
             m_syncAccum.cancelled = true;
             if (m_syncAccum.errorMessage.isEmpty())
                 m_syncAccum.errorMessage = QStringLiteral("Sync cancelled");
-        }
-        // Accumulate per-plugin stats across passes (fold into existing entry).
-        if (!results.isEmpty()) {
-            auto &acc = m_syncAccum.perPluginStats[QStringLiteral("calendar")];
-            acc.created   += stats.created;
-            acc.updated   += stats.updated;
-            acc.deleted   += stats.deleted;
-            acc.unchanged += stats.unchanged;
-            acc.errors    += stats.errors;
         }
 
         // Per-mapping finished — chips fill their counts here (run-end only;
