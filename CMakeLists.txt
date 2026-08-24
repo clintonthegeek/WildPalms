@@ -85,6 +85,16 @@ else()
     FetchContent_MakeAvailable(libkalburator)
 endif()
 
+# Canonical path to libkalburator's checked-out sources, whichever way it
+# was consumed. Tests that compile lib test fixtures directly (e.g.
+# fakecaldavserver.cpp) must use this instead of assuming a flat sibling
+# clone at ../libkalburator — that broke non-flat checkouts.
+if(NOT WILDPALMS_LIBKALBURATOR_SOURCE_DIR)
+    set(WILDPALMS_LIBKALBURATOR_DIR "${libkalburator_SOURCE_DIR}")
+else()
+    set(WILDPALMS_LIBKALBURATOR_DIR "${WILDPALMS_LIBKALBURATOR_SOURCE_DIR}")
+endif()
+
 # Graffodil — graph rendering library (Sync Patchbay). Same consumption
 # pattern as libkalburator: sibling-dir override for development, pinned
 # tag via FetchContent otherwise. See docs/superpowers/specs/

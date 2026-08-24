@@ -861,11 +861,11 @@ set_tests_properties(tst_palm_device_access_connect PROPERTIES
 # Includes the libkalburator FakeCalDavServer source directly.
 add_executable(tst_runtime_caldav_e2e
     tst_runtime_caldav_e2e.cpp
-    ${CMAKE_SOURCE_DIR}/../libkalburator/tests/sync/fakecaldavserver.cpp
+    ${WILDPALMS_LIBKALBURATOR_DIR}/tests/sync/fakecaldavserver.cpp
 )
 target_include_directories(tst_runtime_caldav_e2e
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/../libkalburator/tests/sync
+        ${WILDPALMS_LIBKALBURATOR_DIR}/tests/sync
 )
 target_link_libraries(tst_runtime_caldav_e2e
     PRIVATE
@@ -890,11 +890,11 @@ set_tests_properties(tst_runtime_caldav_e2e PROPERTIES
 # Includes the libkalburator FakeCardDavServer source directly.
 add_executable(tst_runtime_carddav_e2e
     tst_runtime_carddav_e2e.cpp
-    ${CMAKE_SOURCE_DIR}/../libkalburator/tests/sync/fakecarddavserver.cpp
+    ${WILDPALMS_LIBKALBURATOR_DIR}/tests/sync/fakecarddavserver.cpp
 )
 target_include_directories(tst_runtime_carddav_e2e
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/../libkalburator/tests/sync
+        ${WILDPALMS_LIBKALBURATOR_DIR}/tests/sync
 )
 target_link_libraries(tst_runtime_carddav_e2e
     PRIVATE
@@ -1204,7 +1204,7 @@ target_link_libraries(tst_routemapping
 # Kalburator::Sync::SyncMapping before the WP-local src/core/synctypes.h
 # that WildPalmsCore's PUBLIC include path would otherwise win with.
 target_include_directories(tst_routemapping BEFORE PRIVATE
-    ${CMAKE_SOURCE_DIR}/../libkalburator/src/types
+    ${WILDPALMS_LIBKALBURATOR_DIR}/src/types
     ${CMAKE_SOURCE_DIR}/src
 )
 add_test(NAME tst_routemapping COMMAND tst_routemapping)
@@ -1226,7 +1226,7 @@ target_link_libraries(tst_conduit_descriptor
         WildPalmsPalmCalendar
 )
 target_include_directories(tst_conduit_descriptor BEFORE PRIVATE
-    ${CMAKE_SOURCE_DIR}/../libkalburator/src/types
+    ${WILDPALMS_LIBKALBURATOR_DIR}/src/types
     ${CMAKE_SOURCE_DIR}/src
 )
 add_test(NAME tst_conduit_descriptor COMMAND tst_conduit_descriptor)
@@ -1295,7 +1295,7 @@ target_link_libraries(tst_fifth_conduit
         usb
 )
 target_include_directories(tst_fifth_conduit BEFORE PRIVATE
-    ${CMAKE_SOURCE_DIR}/../libkalburator/src/types
+    ${WILDPALMS_LIBKALBURATOR_DIR}/src/types
     ${CMAKE_SOURCE_DIR}/src
 )
 add_test(NAME tst_fifth_conduit COMMAND tst_fifth_conduit)
