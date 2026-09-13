@@ -10,7 +10,9 @@ For deeper history check `~/dev/CLAUDE.md` (the global dev-root instructions) an
 
 **Branch:** local `main`, WP-009 CollectionRuntime cutover committed and
 pushed. `main` is the ONLY working branch; linear-main convention.
-**libkalburator pin:** tag **`v1.06`** (`CMakeLists.txt`), fetched from
+**libkalburator pin:** tag **`v1.07`** (`CMakeLists.txt`, bumped
+2026-09-13 for KND-001 — the DAV kind-demux is deleted upstream, fixing
+task-only/mixed CalDAV calendars), fetched from
 **GitHub** (Codeberg FetchContent/Graffodil URLs were also swapped to
 GitHub this session — Codeberg is a retired push target per `~/dev/CLAUDE.md`).
 Re-pin only forward (newer tags). Build against local checkout via

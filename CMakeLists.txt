@@ -61,13 +61,15 @@ option(KALBURATOR_HAVE_AKONADI "Build with KPim6 Akonadi support" ON)
 
 set(WILDPALMS_LIBKALBURATOR_SOURCE_DIR "" CACHE PATH
     "Optional path to a local libkalburator checkout (override FetchContent)")
-# Tag pin v1.06 (2026-09-10): consumes libkalburator's CollectionRuntime
-# facade (WP-009 cutover — see docs/CONSUMING.md in libkalburator and the
-# WP-side response doc docs/2026-09-03-libkalburator-consuming-contract-
-# response-wildpalms.md). All libkalburator public headers now live under
-# the namespaced kalburator/<domain>/<header>.h include convention introduced
-# at this tag; see docs/LIBKALBURATOR.md.
-set(WILDPALMS_LIBKALBURATOR_GIT_TAG "v1.06" CACHE STRING
+# Tag pin v1.07 (2026-09-13): KND-001 — deletes the DAV kind-demux, so a
+# DAV account always registers one unfiltered :cal backend per iCalendar
+# collection. Also carries the WP-009 CollectionRuntime facade cutover
+# from v1.06 (see docs/CONSUMING.md in libkalburator and the WP-side
+# response doc docs/2026-09-03-libkalburator-consuming-contract-
+# response-wildpalms.md). All libkalburator public headers live under
+# the namespaced kalburator/<domain>/<header>.h include convention
+# introduced at v1.06; see docs/LIBKALBURATOR.md.
+set(WILDPALMS_LIBKALBURATOR_GIT_TAG "v1.07" CACHE STRING
     "libkalburator tag to fetch when WILDPALMS_LIBKALBURATOR_SOURCE_DIR is unset")
 
 if(WILDPALMS_LIBKALBURATOR_SOURCE_DIR)
