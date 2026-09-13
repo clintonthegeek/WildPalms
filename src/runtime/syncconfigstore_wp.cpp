@@ -6,7 +6,7 @@
 #include <QSettings>
 #include <QStringList>
 
-#include <logicalcalendarjson.h>
+#include <kalburator/typesupport/logicalcalendarjson.h>
 
 namespace {
 

@@ -1,8 +1,8 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 
-#include "shape.h"
-#include "syncoperation.h"
+#include <kalburator/shape/shape.h>
+#include <kalburator/calendar/syncoperation.h>
 
 #include "categorymappingstore.h"
 #include "mockpalmdatabaseaccess.h"

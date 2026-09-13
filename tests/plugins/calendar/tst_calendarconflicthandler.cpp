@@ -11,8 +11,8 @@
 #include "palm/sync/mockpalmdatabaseaccess.h"
 #include "palm/conflict/palmbackendconfig.h"
 
-#include "conflictrecord.h"
-#include "conflictpolicy.h"
+#include <kalburator/conflict/conflictrecord.h>
+#include <kalburator/conflict/conflictpolicy.h>
 
 using KCalendarCore::Alarm;
 using KCalendarCore::Event;

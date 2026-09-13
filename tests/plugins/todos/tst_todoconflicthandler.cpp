@@ -8,8 +8,8 @@
 #include "palm/sync/mockpalmdatabaseaccess.h"
 #include "palm/sync/palmrecord.h"
 
-#include "conflictpolicy.h"
-#include "conflictrecord.h"
+#include <kalburator/conflict/conflictpolicy.h>
+#include <kalburator/conflict/conflictrecord.h>
 
 using WildPalms::TodoPlugin::TodoConflictHandler;
 using WildPalms::PalmCodecs::Todo;

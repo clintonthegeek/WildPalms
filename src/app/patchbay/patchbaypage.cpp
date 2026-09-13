@@ -11,7 +11,7 @@
 #include "runtime/palmruntime.h"
 #include "plugins/pimplugin.h"
 
-#include <iprovider.h>
+#include <kalburator/sync/iprovider.h>
 
 namespace WildPalms::AppPatchbay {
 

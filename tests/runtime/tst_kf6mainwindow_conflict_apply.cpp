@@ -10,9 +10,9 @@
 #include "../../src/kf6/kf6mainwindow.h"
 #include "../wildpalms_qtest_main.h"
 
-#include <synctypes.h>
-#include <conflictstore.h>
-#include <syncconflictstore.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/conflict/conflictstore.h>
+#include <kalburator/calendar/syncconflictstore.h>
 
 #include "runtime/palmruntime.h"
 #include "../../src/app/wizard/newprofilewizard.h"

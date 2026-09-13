@@ -9,6 +9,8 @@
 
 #include "kf6/kf6mainwindow.h"
 #include "wildpalms_version.h"
+#include "security/kwalletsecretstore.h"
+#include <kalburator/sync/secretstore.h>
 
 int main(int argc, char *argv[])
 {
@@ -50,6 +52,9 @@ int main(int argc, char *argv[])
     KAboutData::setApplicationData(aboutData);
 
     KCrash::initialize();
+
+    WildPalms::KWalletSecretStore secretStore;
+    Kalburator::Sync::SecretStoreRegistry::setDefaultStore(&secretStore);
 
     QCommandLineParser parser;
     aboutData.setupCommandLine(&parser);

@@ -9,7 +9,7 @@
 #include <QObject>
 
 // K.8b T9: accounts subgroup — needs full type for QList<> member
-#include "backendconfiguration.h"
+#include <kalburator/typesupport/backendconfiguration.h>
 
 /**
  * @brief Connection mode for Palm device

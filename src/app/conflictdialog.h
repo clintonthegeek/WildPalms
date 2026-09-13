@@ -16,8 +16,8 @@
 #include <functional>
 
 // Kalburator types used in this header
-#include "conflictrecord.h"
-#include "conflictpolicy.h"
+#include <kalburator/conflict/conflictrecord.h>
+#include <kalburator/conflict/conflictpolicy.h>
 // K.8b T13: core/isyncconduit.h deleted along with the V1 plugin ABI.
 // ConduitLookupFn lived in that header — redeclare a compatible stub here
 // returning void* (the dialog only used the lookup for type-aware HTML

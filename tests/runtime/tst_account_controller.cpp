@@ -13,9 +13,9 @@
 #include "runtime/palmruntime.h"
 #include "profile.h"
 
-#include <iprovider.h>
-#include <backendconfiguration.h>
-#include <providermanager.h>
+#include <kalburator/sync/iprovider.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/sync/providermanager.h>
 
 /// Minimal provider whose disconnect() emits connectionStateChanged(false)
 /// while connected — same contract as CalDavProvider::disconnect(). Used to

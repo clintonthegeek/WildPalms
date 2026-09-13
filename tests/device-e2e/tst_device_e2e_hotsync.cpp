@@ -12,9 +12,9 @@
 
 #include "runtime/palmruntime.h"
 #include "runtime/palmrunresult.h"
-#include "backendregistry.h"
-#include "backendrecord.h"
-#include <genericsqlitebackend.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/universal/genericsqlitebackend.h>
 
 using namespace WildPalms::DeviceE2E;
 using namespace WildPalms::Runtime;

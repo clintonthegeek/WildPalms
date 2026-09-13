@@ -12,18 +12,18 @@
 
 #include "runtime/palmruntime.h"
 #include "runtime/palmrunresult.h"
-#include "mockblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "synctypes.h"
-#include "shape.h"
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/shape/shape.h>
 
-#include "caldavprovider.h"
-#include "backendconfiguration.h"
-#include "backendregistry.h"
-#include "syncbackend.h"
-#include "pluginmanager.h"
-#include "stock_plugins.h"
+#include <kalburator/sync/caldavprovider.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/calendar/syncbackend.h>
+#include <kalburator/plugin/pluginmanager.h>
+#include <kalburator/plugin/stock_plugins.h>
 // K.8b T7: BlobBackendAdapter deleted; inject via BlobSyncBackendWrapper.
 #include "../blobsyncbackendwrapper.h"
 
@@ -112,9 +112,11 @@ void TstRuntimeCalDavE2E::palm_to_caldav_propagates()
     QVERIFY(!specs.empty());
     auto caldavBackendOwned = std::move(specs.front().backend);
     QVERIFY(caldavBackendOwned);
-    auto *caldavSync = dynamic_cast<SyncBackend *>(caldavBackendOwned.get());
+    auto *caldavRaw = caldavBackendOwned.release();
+    auto *caldavSync = dynamic_cast<SyncBackendBase *>(caldavRaw);
     QVERIFY(caldavSync);
-    runtime.backendRegistry().registerBackendInstance(kCaldavBkId, caldavSync);
+    runtime.registerBackendInstanceForTest(
+        kCaldavBkId, std::unique_ptr<SyncBackendBase>(caldavSync));
 
     auto palmBlob = std::make_unique<MockBlobBackend>();
     {
@@ -180,9 +182,11 @@ void TstRuntimeCalDavE2E::caldav_to_palm_propagates()
     QVERIFY(!specs.empty());
     auto caldavBackendOwned = std::move(specs.front().backend);
     QVERIFY(caldavBackendOwned);
-    auto *caldavSync = dynamic_cast<SyncBackend *>(caldavBackendOwned.get());
+    auto *caldavRaw = caldavBackendOwned.release();
+    auto *caldavSync = dynamic_cast<SyncBackendBase *>(caldavRaw);
     QVERIFY(caldavSync);
-    runtime.backendRegistry().registerBackendInstance(kCaldavBkId, caldavSync);
+    runtime.registerBackendInstanceForTest(
+        kCaldavBkId, std::unique_ptr<SyncBackendBase>(caldavSync));
 
     auto palmBlobOwned = std::make_unique<MockBlobBackend>();
     MockBlobBackend *palmBlob = palmBlobOwned.get();
@@ -236,9 +240,11 @@ void TstRuntimeCalDavE2E::bidirectional_no_conflict()
     QVERIFY(!specs.empty());
     auto caldavBackendOwned = std::move(specs.front().backend);
     QVERIFY(caldavBackendOwned);
-    auto *caldavSync = dynamic_cast<SyncBackend *>(caldavBackendOwned.get());
+    auto *caldavRaw = caldavBackendOwned.release();
+    auto *caldavSync = dynamic_cast<SyncBackendBase *>(caldavRaw);
     QVERIFY(caldavSync);
-    runtime.backendRegistry().registerBackendInstance(kCaldavBkId, caldavSync);
+    runtime.registerBackendInstanceForTest(
+        kCaldavBkId, std::unique_ptr<SyncBackendBase>(caldavSync));
 
     auto palmBlobOwned = std::make_unique<MockBlobBackend>();
     MockBlobBackend *palmBlob = palmBlobOwned.get();
@@ -309,9 +315,11 @@ void TstRuntimeCalDavE2E::memory_calendar_observable_during_sync()
     QVERIFY(!specs.empty());
     auto caldavBackendOwned = std::move(specs.front().backend);
     QVERIFY(caldavBackendOwned);
-    auto *caldavSync = dynamic_cast<SyncBackend *>(caldavBackendOwned.get());
+    auto *caldavRaw = caldavBackendOwned.release();
+    auto *caldavSync = dynamic_cast<SyncBackendBase *>(caldavRaw);
     QVERIFY(caldavSync);
-    runtime.backendRegistry().registerBackendInstance(kCaldavBkId, caldavSync);
+    runtime.registerBackendInstanceForTest(
+        kCaldavBkId, std::unique_ptr<SyncBackendBase>(caldavSync));
 
     auto palmBlob = std::make_unique<MockBlobBackend>();
     {

@@ -2,8 +2,8 @@
 
 #include <QCryptographicHash>
 
-#include "backendrecord.h"
-#include "collectioninfo.h"
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/collectioninfo.h>
 #include "ipalmdatabaseaccess.h"
 #include "palmrecord.h"
 

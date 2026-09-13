@@ -30,7 +30,7 @@ CMake targets WildPalms links against:
 - `Kalburator::Sync` — the main library. Always linked.
 - `Kalburator::Types` — header-only shared vocabulary (`SyncResult`, `SyncMapping`, `CollectionInfo`, `Shape`, etc.). Inherited transitively from `Kalburator::Sync`.
 
-WildPalms's plugin libraries (`wildpalms_calendar_v2`, etc.) link `Kalburator::Sync` and also need `target_include_directories(<lib> BEFORE PRIVATE $<TARGET_PROPERTY:Kalburator::Sync,INTERFACE_INCLUDE_DIRECTORIES>)` to ensure libkalburator's `Sync::` namespace headers take precedence over any residual local `::Sync` headers — see the per-plugin `CMakeLists.txt` for the canonical pattern.
+WildPalms's plugin libraries (`wildpalms_calendar_static`, etc.) link `Kalburator::Sync` normally and inherit its namespaced public include interface through that link. The production graph no longer extracts target properties or force-links the aggregate library; specialized registrar tests may retain explicit force-link fixtures where they test static registration.
 
 ## What we use from it
 

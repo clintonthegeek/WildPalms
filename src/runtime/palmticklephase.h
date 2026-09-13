@@ -4,7 +4,7 @@
 // P2: Extracted so the unit test (tst_tickle_phase.cpp) can include
 // this header without pulling in the full palmruntime.cpp translation unit.
 
-#include "syncengine.h"  // Kalburator::Engine::SyncPhase
+#include <kalburator/engine/syncengine.h>  // Kalburator::Engine::SyncPhase
 
 namespace WildPalms::Runtime {
 

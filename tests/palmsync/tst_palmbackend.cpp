@@ -1,8 +1,8 @@
 #include <QCryptographicHash>
 #include <QtTest/QtTest>
 
-#include "backendrecord.h"
-#include "collectioninfo.h"
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/collectioninfo.h>
 #include "mockpalmdatabaseaccess.h"
 #include "palmbackend.h"
 #include "palmrecord.h"

@@ -6,19 +6,44 @@ For deeper history check `~/dev/CLAUDE.md` (the global dev-root instructions) an
 
 ---
 
-## Current branch and state (as of 2026-08-23)
+## Current branch and state (as of 2026-09-13)
 
-**Branch:** local `main` at `f1670cc` ("build: resolve libkalburator
-test-fixture paths via WILDPALMS_LIBKALBURATOR_DIR"). `main` is the ONLY
-working branch; linear-main convention. **Working tree is clean.**
-**libkalburator pin:** tag **`v1.01`** (`CMakeLists.txt`; commit `b847ab8` on main).
+**Branch:** local `main`, WP-009 CollectionRuntime cutover committed and
+pushed. `main` is the ONLY working branch; linear-main convention.
+**libkalburator pin:** tag **`v1.06`** (`CMakeLists.txt`), fetched from
+**GitHub** (Codeberg FetchContent/Graffodil URLs were also swapped to
+GitHub this session — Codeberg is a retired push target per `~/dev/CLAUDE.md`).
 Re-pin only forward (newer tags). Build against local checkout via
-`-DWILDPALMS_LIBKALBURATOR_SOURCE_DIR=~/dev/libkalburator`.
+`-DWILDPALMS_LIBKALBURATOR_SOURCE_DIR=~/dev/libkalburator` (note: that
+sibling checkout may sit ahead of v1.06 on `main` day-to-day; verified
+2026-09-13 that WP builds clean at both HEAD and pinned exactly at v1.06).
+**libkalburator v1.06 migration (this session):** libkalburator's
+CollectionRuntime facade cutover (`docs/CONSUMING.md`, WP-009) moved every
+public header behind a namespaced `kalburator/<domain>/<header>.h` include
+root and dropped the old `target_include_directories` force-link hack
+consumers used for flat `#include "header.h"` resolution. Repointed ~130
+files across the superproject plus all five conduit submodules
+(calendar/contacts/memo/todos pushed to `feature/canon-adoption-phase1`;
+plucker to `main`) to the new include convention. The WP-009 adapter work
+itself (`palmruntimeadapters.{h,cpp}`, `palmruntimeassembly.h`,
+`PalmRuntime`/`AccountController` dual-mode CollectionRuntime cutover, the
+`src/security/kwalletsecretstore` SecretStore prototype from the consuming-
+contract response doc) was already substantially written before this
+session and is now committed as-is, build-fixed only.
+Fixed one pre-existing test bug surfaced only now that CollectionRuntime
+validates topology at commit time: `tst_palm_runtime_default_mappings_
+only_when_empty`'s `starMappingsSupersedePreexistingMappings` referenced an
+unregistered "test-target" backend (now injected via
+`registerBackendInstanceForTest`, matching sibling tests) and asserted a
+stale generated-mapping-id string (Direct-kind routes keep their
+`wp-route-<id>` id — they are not re-run through `generateMappings`).
 **Build dir convention:** legacy `build/` (no `CMakePresets.json`). Stray dirs `build-dev/`, `build-c/`, `build-fetchcontent/`, `build-appimage/` may exist on disk from prior experiments; ignore unless cleaning house.
-**ctest:** **133/133 pass** (as of 2026-08-23, post-UX-shakedown cycles).
+**ctest:** **133/133 pass**, verified against both the local libkalburator
+checkout and a clean worktree pinned exactly at tag `v1.06`.
 The device-e2e integration test runs GREEN against a POSE64 emulator via
 `ctest -L device-e2e` with `WILDPALMS_POSE64_BIN` +
-`WILDPALMS_PALM_BASELINE_PSF` set.
+`WILDPALMS_PALM_BASELINE_PSF` set (not re-verified this session — no
+device attached).
 **Stray branches** (pre-existing, not ours): `task8-three-tier-sync`, two `worktree-agent-*`.
 
 ### UX shakedown remediation — EXECUTED 2026-08-23 (cycles 1–8)
@@ -515,6 +540,7 @@ These either need a libkalburator response or sit on the WP-edit pile:
 
 | Doc | Direction | Status |
 |---|---|---|
+| `2026-09-03-libkalburator-consuming-contract-response-wildpalms.md` | WP → lib | **OPEN** — response to lib's `docs/CONSUMING.md` (target `CollectionRuntime` facade). Gap analysis: WP already satisfies "retain control of"; two real gaps (no persistent SecretStore, no `ExternalResourceLease`-shaped Palm lease) plus a `RuntimeDefinition` shape mismatch (missing `secrets`/`extensions` fields). Proposes WP starts a `WildPalmsSecretStore` adapter + `PalmDeviceLease` prototype now, independent of lib timing; everything else waits on lib answers to 5 open questions (§5). |
 | `2026-08-22-libkalburator-o55-followup-recategorization-handoff.md` | WP → lib | **CLOSED** — FINDINGS **O56**, fixed lib `b847ab8` / tag **v1.01** (anchor-stable aliasing + all-or-nothing unresolved-conflict write hold). WP pinned v1.01; recategorization test passes; ctest 130/130. |
 | `2026-08-21-libkalburator-hub-record-id-join-churn-handoff.md` | WP → lib | **CLOSED** — FINDINGS **O55**, fixed lib `db3b1c8` / tag **v1.00** (engine record-id aliasing + identity-conflict fail-loud guard; WP's proposed Direction 1). See doc §Resolution. Follow-up above. |
 | *(pending: Akonadi `contentTypes` handoff for shakedown F4)* | WP → lib | **TO WRITE** — Tasks unbindable via wizard / Calendar over-match (lib `akonadiprovider.cpp:126-141`). Precedent: the v0.67 contentTypes handoff, DAV side. Roadmap Tier 3. |

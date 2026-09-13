@@ -7,7 +7,11 @@
 #include "runtime/palmruntime.h"
 #include "runtime/palmdeviceaccess.h"
 #include "palm/sync/mockpalmdatabaseaccess.h"
-#include "synctypes.h"
+#include <kalburator/types/synctypes.h>
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+
+#include "../blobsyncbackendwrapper.h"
 
 class TstPalmRuntimeDefaultMappingsOnlyWhenEmpty : public QObject
 {
@@ -135,6 +139,18 @@ void TstPalmRuntimeDefaultMappingsOnlyWhenEmpty::starMappingsSupersedePreexistin
     runtime.reloadMappings(arr);
     QCOMPARE(runtime.palmMappings().size(), 1);
 
+    // The route's target must resolve to a materialized endpoint under the
+    // CollectionRuntime cutover (topology commit now validates every
+    // mapping endpoint); register a mock remote so "test-target" exists.
+    auto mockRemote = std::make_unique<Kalburator::Sync::MockBlobBackend>();
+    Kalburator::Sync::CollectionInfo personal;
+    personal.id = QStringLiteral("Personal");
+    personal.name = QStringLiteral("Personal");
+    mockRemote->createCollection(personal);
+    runtime.registerBackendInstanceForTest(
+        QStringLiteral("test-target"),
+        WildPalmsTest::BlobSyncBackendWrapper::wrap(std::move(mockRemote), QStringLiteral("test-target")));
+
     auto mockDb = std::make_unique<WildPalms::PalmSync::MockPalmDatabaseAccess>();
     auto deviceAccess = std::make_unique<WildPalms::Runtime::PalmDeviceAccess>(
         std::move(mockDb), nullptr);
@@ -151,13 +167,15 @@ void TstPalmRuntimeDefaultMappingsOnlyWhenEmpty::starMappingsSupersedePreexistin
     }
 
     // The user's original mapping id is NOT in the output — it was translated
-    // into a route LC with id "wp-route-user-preexisting". generateMappings
-    // names the resulting SyncMapping "auto_<lcId>_sync1".
+    // into a Direct-kind route LC. buildRouteLogicalCalendars() appends that
+    // route mapping directly (it is not re-run through generateMappings), so
+    // it keeps the "wp-route-<originalId>" id rather than an "auto_..._sync1"
+    // generated name.
     bool hasOriginalId = false;
     bool hasRouteMapping = false;
     for (const auto &x : post) {
         if (x.id == QStringLiteral("user-preexisting")) hasOriginalId = true;
-        if (x.id == QStringLiteral("auto_wp-route-user-preexisting_sync1")) hasRouteMapping = true;
+        if (x.id == QStringLiteral("wp-route-user-preexisting")) hasRouteMapping = true;
     }
     QVERIFY(!hasOriginalId);
     QVERIFY(hasRouteMapping);

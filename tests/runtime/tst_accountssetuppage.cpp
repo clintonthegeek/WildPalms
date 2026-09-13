@@ -10,10 +10,10 @@
 #include "app/wizard/accountssetuppage.h"
 #include "app/wizard/wizardstate.h"
 
-#include <backendregistry.h>
-#include <backendcontribution.h>
-#include <iprovider.h>
-#include <collectioninfo.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/backendcontribution.h>
+#include <kalburator/sync/iprovider.h>
+#include <kalburator/types/collectioninfo.h>
 
 using WildPalms::Wizard::AccountsSetupPage;
 using WildPalms::Wizard::WizardState;

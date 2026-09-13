@@ -96,9 +96,7 @@ set_tests_properties(tst_palm_runtime_hotsync PROPERTIES
 
 # Change-detection unit tests (grows across the multi-hop-sync tasks): mock
 # revision counter (Task 2), PalmBackend forwarding (Task 3), PalmChangeDetection
-# mixin (Task 5), and the shouldContinueSync loop helper (Task 6). The later cases
-# pull in WildPalmsRuntime + Kalburator::Sync (SyncResult), so the full link set
-# below (mirroring tst_palm_runtime_hotsync) is needed by the end, not dead weight.
+# mixin. The full runtime link set below mirrors the hotsync contract lane.
 add_executable(tst_palm_change_detection tst_palm_change_detection.cpp)
 target_link_libraries(tst_palm_change_detection
     PRIVATE
@@ -1189,7 +1187,7 @@ set_tests_properties(tst_accountssetuppage PROPERTIES
 # stores-hash signature that substrate A3 retired.) Links WildPalmsRuntime +
 # Kalburator::Sync directly (not WildPalmsCore) so that #include "synctypes.h"
 # resolves to libkalburator's Kalburator::Sync header rather than the WP-local
-# src/core/synctypes.h (which WildPalmsCore's PUBLIC include path would shadow).
+# legacy local sync header (removed; the canonical library header is used).
 add_executable(tst_routemapping tst_routemapping.cpp)
 target_link_libraries(tst_routemapping
     PRIVATE
@@ -1201,7 +1199,7 @@ target_link_libraries(tst_routemapping
 )
 # Add src/ so that #include "palm/calendar/..." and "runtime/..." resolve.
 # Prepend libkalburator/src/types so that #include "synctypes.h" finds
-# Kalburator::Sync::SyncMapping before the WP-local src/core/synctypes.h
+# Kalburator::Sync::SyncMapping from the canonical library header.
 # that WildPalmsCore's PUBLIC include path would otherwise win with.
 target_include_directories(tst_routemapping BEFORE PRIVATE
     ${WILDPALMS_LIBKALBURATOR_DIR}/src/types

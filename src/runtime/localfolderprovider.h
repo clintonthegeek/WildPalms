@@ -1,9 +1,9 @@
 #ifndef WILDPALMS_RUNTIME_LOCALFOLDERPROVIDER_H
 #define WILDPALMS_RUNTIME_LOCALFOLDERPROVIDER_H
 
-#include <iprovider.h>
-#include <backendconfiguration.h>
-#include <collectioninfo.h>
+#include <kalburator/sync/iprovider.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/types/collectioninfo.h>
 
 #include <vector>
 

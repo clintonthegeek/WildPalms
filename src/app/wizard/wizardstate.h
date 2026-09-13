@@ -1,8 +1,8 @@
 #ifndef WILDPALMS_APP_WIZARD_WIZARDSTATE_H
 #define WILDPALMS_APP_WIZARD_WIZARDSTATE_H
 
-#include <backendconfiguration.h>
-#include <collectioninfo.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/types/collectioninfo.h>
 
 #include <QList>
 #include <QString>

@@ -9,8 +9,8 @@
 #include "palm/sync/mockpalmdatabaseaccess.h"
 #include "plugins/calendar/calendarbackendplugin.h"
 #include "palm/calendar/categorymappingstore.h"
-#include "backendregistry.h"
-#include "synctypes.h"
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/types/synctypes.h>
 
 class TstPalmRuntimeRoutes : public QObject { Q_OBJECT
 private slots:

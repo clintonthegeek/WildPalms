@@ -9,7 +9,7 @@
 #include "runtime/palmruntime.h"
 #include "profile.h"
 
-#include <backendconfiguration.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 using Kalburator::Sync::BackendConfiguration;
 

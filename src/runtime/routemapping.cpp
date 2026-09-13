@@ -2,7 +2,7 @@
 
 #include "plugins/pimplugin.h"
 #include "palm/calendar/categorymappingstore.h"
-#include "synctypes.h"
+#include <kalburator/types/synctypes.h>
 
 namespace WildPalms::Runtime {
 

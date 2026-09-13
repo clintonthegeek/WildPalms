@@ -2,8 +2,8 @@
 #include <QTemporaryDir>
 
 #include "runtime/palmruntime.h"
-#include "conflictpolicy.h"
-#include "conflicthandlerregistry.h"
+#include <kalburator/conflict/conflictpolicy.h>
+#include <kalburator/conflict/conflicthandlerregistry.h>
 
 namespace KSync = Kalburator::Sync;
 

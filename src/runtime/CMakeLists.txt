@@ -67,6 +67,8 @@ add_library(WildPalmsRuntime STATIC
     # WildPalmsCore.so link.
     categoryreconciler.h
     categoryreconciler.cpp
+    palmruntimeadapters.h
+    palmruntimeadapters.cpp
     # Clobber-sync Task 4 — modal dialog for per-conduit Palm-clobber
     # selection. Pure Qt::Widgets; no engine/device knowledge.
     clobberdialog.h
@@ -122,6 +124,7 @@ add_library(PalmDeviceAccessLib STATIC
     palmdeviceaccess.cpp
     palmrunresult.h
     palmruntime.h
+    palmruntimeassembly.h
     palmruntime.cpp
     palmticklephase.h   # P2: phase-scoped tickle pause helper (header-only)
     accountcontroller.h

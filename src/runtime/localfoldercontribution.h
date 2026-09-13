@@ -1,7 +1,7 @@
 #ifndef WILDPALMS_RUNTIME_LOCALFOLDERCONTRIBUTION_H
 #define WILDPALMS_RUNTIME_LOCALFOLDERCONTRIBUTION_H
 
-#include <backendcontribution.h>
+#include <kalburator/sync/backendcontribution.h>
 #include "localfolderprovider.h"
 
 namespace WildPalms::Runtime {

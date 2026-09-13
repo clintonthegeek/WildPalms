@@ -39,9 +39,6 @@ add_library(WildPalmsCore SHARED
     palm/palmdevicemonitor.cpp
     palm/palmdevicemonitor.h
 
-    # Shared sync-related types (relocated from src/sync/ in E.16; survives the sync-tree deletion)
-    core/synctypes.h
-
     # JSON hash store for per-conduit pending-conflict tracking (legacy code
     # path used by SyncState::pendingConflictCount). Lives alongside, not
     # replacing, the SQLite-backed Kalburator::Storage::BaselineStore used by
@@ -107,6 +104,9 @@ add_library(WildPalmsCore SHARED
     # Widgets - Sidebar
     widgets/sidebar/profilesidebar.cpp
     widgets/sidebar/profilesidebar.h
+
+    # Persistent host adapter for libkalburator secret references.
+    security/kwalletsecretstore.h security/kwalletsecretstore.cpp
 )
 
 target_link_libraries(WildPalmsCore
@@ -115,7 +115,7 @@ target_link_libraries(WildPalmsCore
         Qt::Widgets
         KF6::I18n
     PRIVATE
-        $<LINK_LIBRARY:WHOLE_ARCHIVE,Kalburator::Sync>
+        Kalburator::Sync
         Qt::Network
         KF6::CalendarCore
         KF6::CoreAddons
@@ -125,6 +125,7 @@ target_link_libraries(WildPalmsCore
         KF6::ConfigWidgets
         KF6::Notifications
         KF6::StatusNotifierItem
+        KF6::Wallet
         pisock
         bluetooth  # pilot-link transitive dep (Bluetooth HotSync)
         usb        # pilot-link transitive dep (USB HotSync)
@@ -157,7 +158,7 @@ target_link_libraries(WildPalmsCore
         # libkalburator's synctypes.h (not WP-local core/synctypes.h).
         WildPalmsAppMapping
         # Sync Patchbay (Part 1) — three-tier graph centerpiece. Separate
-        # static lib, same synctypes.h isolation rationale as AppMapping.
+        # static library, keeping mapping UI dependencies isolated.
         WildPalmsAppPatchbay
         # Phase Ic — AccountsPage + AddAccountDialog.
         # SettingsDialog instantiates AccountsPage when AccountController +
@@ -235,11 +236,6 @@ install(FILES
 )
 
 install(FILES
-    core/synctypes.h
-    DESTINATION include/wildpalms/core
-)
-
-install(FILES
     sync/qsynccore/synccommon.h
     sync/qsynccore/idmappingstore.h
     sync/qsynccore/baselinestore.h
@@ -311,12 +307,12 @@ add_subdirectory(app/conflict)
 # F.3 — Sync Mappings graph view (WildPalmsAppMapping).
 # Separate static lib for the same reason as WildPalmsAppConflict: avoids
 # having WildPalmsCore's PUBLIC src/core/ on the include path so that
-# `#include "synctypes.h"` resolves to libkalburator's Kalburator::Sync
+# canonical libkalburator sync types resolve through the public target include path
 # header (not WP-local Sync:: namespace).
 add_subdirectory(app/mapping)
 
 # Sync Patchbay (Part 1) — three-tier Graffodil graph (WildPalmsAppPatchbay).
-# Same synctypes.h isolation rationale as WildPalmsAppMapping.
+# Keep this optional UI component's dependency surface isolated.
 add_subdirectory(app/patchbay)
 
 # F.1c.1 — NewProfileWizard.

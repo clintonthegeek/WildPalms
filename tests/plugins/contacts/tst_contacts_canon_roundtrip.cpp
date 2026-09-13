@@ -7,13 +7,13 @@
 #include "palm/calendar/categorymappingstore.h"
 
 // libkalburator shape graph + contacts canon (via Kalburator::Sync)
-#include "shaperegistries.h"
-#include "transformationregistry.h"
-#include "shape.h"
-#include "pipeline.h"
-#include "lossprofile.h"
-#include "contactsdomaindefinition.h"
-#include "contactsstockshapes.h"
+#include <kalburator/shape/shaperegistries.h>
+#include <kalburator/shape/transformationregistry.h>
+#include <kalburator/shape/shape.h>
+#include <kalburator/shape/pipeline.h>
+#include <kalburator/shape/lossprofile.h>
+#include <kalburator/contacts/contactsdomaindefinition.h>
+#include <kalburator/contacts/contactsstockshapes.h>
 
 using namespace Kalburator::Shape;
 using WildPalms::ContactsPlugin::ContactsPalmShapes;

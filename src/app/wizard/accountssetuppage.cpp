@@ -3,10 +3,10 @@
 
 #include "app/accounts/addaccountdialog.h"   // WildPalmsAppAccounts (PUBLIC dep of this lib)
 
-#include <backendregistry.h>
-#include <backendcontribution.h>
-#include <collectioninfo.h>
-#include <iprovider.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/backendcontribution.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/sync/iprovider.h>
 
 #include <QFutureWatcher>
 #include <QHBoxLayout>

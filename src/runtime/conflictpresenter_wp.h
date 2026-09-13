@@ -1,7 +1,7 @@
 #ifndef WILDPALMS_RUNTIME_CONFLICTPRESENTER_WP_H
 #define WILDPALMS_RUNTIME_CONFLICTPRESENTER_WP_H
 
-#include <iconflictpresenter.h>
+#include <kalburator/calendar/iconflictpresenter.h>
 
 namespace WildPalms::Runtime {
 

@@ -7,13 +7,13 @@
 #include "palm/calendar/categorymappingstore.h"
 
 // libkalburator shape graph + todo canon (via Kalburator::Sync)
-#include "shaperegistries.h"
-#include "transformationregistry.h"
-#include "shape.h"
-#include "pipeline.h"
-#include "lossprofile.h"
-#include "tododomaindefinition.h"
-#include "todostockshapes.h"
+#include <kalburator/shape/shaperegistries.h>
+#include <kalburator/shape/transformationregistry.h>
+#include <kalburator/shape/shape.h>
+#include <kalburator/shape/pipeline.h>
+#include <kalburator/shape/lossprofile.h>
+#include <kalburator/todo/tododomaindefinition.h>
+#include <kalburator/todo/todostockshapes.h>
 
 using namespace Kalburator::Shape;
 using WildPalms::TodoPlugin::TodoPalmShapes;

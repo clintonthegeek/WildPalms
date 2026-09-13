@@ -2,7 +2,7 @@
 
 #include "contactsdomainextension.h"
 
-#include "transformationregistry.h"
+#include <kalburator/shape/transformationregistry.h>
 
 using WildPalms::ContactsPlugin::ContactsPalmShapes;
 using namespace Kalburator::Shape;

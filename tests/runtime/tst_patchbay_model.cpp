@@ -7,7 +7,7 @@
 #include "../../src/app/patchbay/patchbaymodel.h"
 #include "../wildpalms_qtest_main.h"
 
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 using namespace WildPalms::AppPatchbay;
 using Kalburator::Sync::CollectionInfo;

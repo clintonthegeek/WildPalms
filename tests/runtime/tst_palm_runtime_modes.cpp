@@ -7,15 +7,15 @@
 #include "runtime/palmruntime.h"
 #include "runtime/palmdeviceaccess.h"
 #include "runtime/palmrunresult.h"
-#include "mockblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "backendregistry.h"
-#include "synctypes.h"
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/types/synctypes.h>
 #include "palm/kpilotlink.h"
 #include "palm/pilotrecord.h"
-#include "pluginmanager.h"
-#include "stock_plugins.h"
+#include <kalburator/plugin/pluginmanager.h>
+#include <kalburator/plugin/stock_plugins.h>
 // K.8b T7: BlobBackendAdapter deleted; inject via BlobSyncBackendWrapper.
 #include "../blobsyncbackendwrapper.h"
 

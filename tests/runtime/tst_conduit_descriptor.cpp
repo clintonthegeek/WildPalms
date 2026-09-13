@@ -5,8 +5,8 @@
 #include "../wildpalms_qtest_main.h"
 
 #include "plugins/pimplugin.h"
-#include <collectioninfo.h>
-#include <syncbackendbase.h>   // complete type: TestConduit::createPalmBackend returns unique_ptr<SyncBackendBase>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/sync/syncbackendbase.h>   // complete type: TestConduit::createPalmBackend returns unique_ptr<SyncBackendBase>
 
 using Kalburator::Sync::CollectionInfo;
 using WildPalms::Plugins::PimPlugin;

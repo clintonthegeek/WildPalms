@@ -6,7 +6,7 @@
 #include <QList>
 #include <QRectF>
 
-#include <collectioninfo.h>   // Kalburator::Sync::CollectionInfo
+#include <kalburator/types/collectioninfo.h>   // Kalburator::Sync::CollectionInfo
 
 namespace WildPalms::AppMapping {
 

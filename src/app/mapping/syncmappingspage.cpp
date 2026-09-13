@@ -10,7 +10,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
-#include <iprovider.h>
+#include <kalburator/sync/iprovider.h>
 
 namespace WildPalms::AppMapping {
 
@@ -91,17 +91,17 @@ void SyncMappingsPage::reloadGraph()
     // Providers.
     QList<SyncMappingGraphView::ProviderEntry> providerEntries;
     if (m_accounts) {
-        for (auto *provider : m_accounts->providers()) {
+        for (const auto &provider : m_accounts->providerSummaries()) {
             SyncMappingGraphView::ProviderEntry e;
-            e.providerId  = provider->id();
-            e.displayName = provider->displayName();
-            e.collections = m_accounts->collectionsFor(provider->id());
-            const auto state = m_accounts->stateFor(provider->id());
+            e.providerId  = provider.id;
+            e.displayName = provider.displayName;
+            e.collections = provider.collections;
+            const auto state = provider.state;
             using S = WildPalms::Runtime::AccountController::ConnectionState;
             if (state == S::Connecting)
                 e.busyText = tr("Connecting…");
             else if (state == S::Error)
-                e.busyText = tr("Error: %1").arg(m_accounts->errorFor(provider->id()));
+                e.busyText = tr("Error: %1").arg(provider.errorMessage);
             providerEntries.append(e);
         }
     }

@@ -8,8 +8,8 @@
 #include "runtime/localfolderprovider.h"
 #include "runtime/localfolderconfigwidget.h"
 #include "runtime/localfoldercontribution.h"
-#include <backendconfiguration.h>
-#include <collectioninfo.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/types/collectioninfo.h>
 
 using namespace WildPalms::Runtime;
 using Kalburator::Sync::BackendConfiguration;

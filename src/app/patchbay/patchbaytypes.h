@@ -7,7 +7,7 @@
 #include <QStringList>
 #include <functional>
 
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 namespace WildPalms::AppPatchbay {
 

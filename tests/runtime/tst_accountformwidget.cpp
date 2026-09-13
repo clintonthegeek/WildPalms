@@ -5,11 +5,11 @@
 #include "../wildpalms_qtest_main.h"
 
 #include "app/accounts/accountformwidget.h"
-#include <backendregistry.h>
-#include <backendconfiguration.h>
-#include <backendcontribution.h>
-#include <iprovider.h>
-#include <collectioninfo.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/sync/backendcontribution.h>
+#include <kalburator/sync/iprovider.h>
+#include <kalburator/types/collectioninfo.h>
 #include <QPromise>
 
 using WildPalms::App::Accounts::AccountFormWidget;

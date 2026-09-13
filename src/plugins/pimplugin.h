@@ -2,8 +2,8 @@
 #ifndef WILDPALMS_PLUGINS_PIMPLUGIN_H
 #define WILDPALMS_PLUGINS_PIMPLUGIN_H
 
-#include "plugin.h"   // Kalburator::Plugin (libkalburator)
-#include <shape.h>    // Kalburator::Shape::DomainId
+#include <kalburator/plugin/plugin.h>   // Kalburator::Plugin (libkalburator)
+#include <kalburator/shape/shape.h>    // Kalburator::Shape::DomainId
 #include <QStringList>
 #include <memory>
 

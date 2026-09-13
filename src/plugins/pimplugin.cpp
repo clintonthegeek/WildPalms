@@ -1,7 +1,7 @@
 #include "pimplugin.h"
 
 #include "palm/calendar/categorymappingstore.h"
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 namespace WildPalms::Plugins {
 

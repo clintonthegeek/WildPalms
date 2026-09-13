@@ -1,10 +1,10 @@
 #include "palmruntime.h"
+#include "palmruntimeadapters.h"
 #include "palmticklephase.h"
 #include "palmdeviceaccess.h"
 #include "palm/kpilotlink.h"
 #include "palm/kpilotdevicelink.h"
 
-#include <QPromise>
 #include <QDir>
 #include <QFileInfo>
 #include <algorithm>
@@ -14,40 +14,34 @@
 #include <QSet>
 #include <QtConcurrent>
 
-#include "backendregistry.h"
-#include "syncengine.h"
-#include "syncrequest.h"
-#include "conflicthandlerregistry.h"
-#include "syncbackend.h"
-#include "synctypes.h"
-#include "syncconflictstore.h"
-#include "collectioninfo.h"
-#include "conflictrecord.h"
-#include <isynchost.h>
-#include <baselinestore.h>
-#include <isyncconfigstore.h>
-#include <imassdeleteguard.h>
-#include "shape.h"
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/calendar/syncbackend.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/calendar/syncconflictstore.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/conflict/conflictrecord.h>
+#include <kalburator/engine/imassdeleteguard.h>
+#include <kalburator/shape/shape.h>
 // K.8b T13: ibackendplugin_v2.h include removed — V2 plugin ABI deleted.
 #include "palm/device/pilotlinkpalmdatabaseaccess.h"
 
 // O7: stock domain/infra plugins, loaded in one batch with WP's plugins
 // (mirrors PlanStan's composition root). DAV provider plugins are omitted —
 // registerStandardContributions() seeds those backend contributions.
-#include <universalstorageplugin.h>
-#include <blobplugin.h>
-#include <noteplugin.h>
-#include <todoplugin.h>
-#include <contactsplugin.h>
-#include <calendarplugin.h>
+#include <kalburator/universal/universalstorageplugin.h>
+#include <kalburator/blob/blobplugin.h>
+#include <kalburator/note/noteplugin.h>
+#include <kalburator/todo/todoplugin.h>
+#include <kalburator/contacts/contactsplugin.h>
+#include <kalburator/calendar/calendarplugin.h>
 
 // K.8b T6: in-process plugin loading via PluginManager.
 // Kalburator::Sync exposes src/plugin/ on its PUBLIC include path,
 // so headers are reachable without a path prefix.
-#include "pluginmanager.h"
-#include "manifest.h"
-#include "stock_plugins.h"
-#include "domainregistry.h"
+#include <kalburator/plugin/pluginmanager.h>
+#include <kalburator/plugin/manifest.h>
+#include <kalburator/plugin/stock_plugins.h>
+#include <kalburator/shape/domainregistry.h>
 #include "plugins/calendar/calendarbackendplugin.h"
 #include "plugins/contacts/contactsbackendplugin.h"
 #include "plugins/memo/memobackendplugin.h"
@@ -56,12 +50,12 @@
 
 #include "profile.h"
 
-#include <genericsqlitebackend.h>
-#include <logicalcalendar.h>
-#include <syncmappinggenerator.h>
+#include <kalburator/universal/genericsqlitebackend.h>
+#include <kalburator/types/logicalcalendar.h>
+#include <kalburator/sync/syncmappinggenerator.h>
 
-#include <filteredcollectionbackend.h>
-#include <recordfilter.h>
+#include <kalburator/universal/filteredcollectionbackend.h>
+#include <kalburator/shape/recordfilter.h>
 
 #include "routemapping.h"
 #include "conduitcatalog.h"
@@ -69,6 +63,7 @@
 #include "palm/sync/palmchangedetection.h"
 
 #include "standardcontributions.h"
+#include <kalburator/runtime/collectionruntime.h>
 
 namespace {
 
@@ -83,20 +78,6 @@ static QString sanitizeForFilesystem(const QString &id)
      .replace(QLatin1Char('/'), QLatin1Char('_'));
     return s;
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// PalmSyncHost
-// Minimal ISyncHost backed by BackendRegistry. backendById()/backends() are
-// inherited from the v0.69 registry-backed base defaults (Plan 8 step 1),
-// which match the overrides this class carried before byte-for-byte.
-// ──────────────────────────────────────────────────────────────────────────────
-class PalmSyncHost final : public Kalburator::Sync::ISyncHost {
-public:
-    explicit PalmSyncHost(Kalburator::Sync::BackendRegistry *registry) {
-        setBackendRegistry(registry);
-    }
-    Kalburator::Sync::ISyncConfigStore* configStore() override { return nullptr; }
-};
 
 // O7: stock domain/infra plugins DEFINE their canonical domain.
 static Kalburator::PluginManifest mkStockManifest(const QString &id,
@@ -134,15 +115,20 @@ static Kalburator::PluginManifest mkPalmManifest(const QString &id,
 
 namespace WildPalms::Runtime {
 
-PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
-    : QObject(parent)
-    , m_profilePath(profilePath)
+PalmRuntimeAssembly::PalmRuntimeAssembly(const QString &profilePath)
+    : m_profilePath(profilePath)
     , m_backupRoot(QDir(profilePath).filePath(QStringLiteral("backup")))
     , m_registry(std::make_unique<Kalburator::Sync::BackendRegistry>())
-    , m_baselineStore(std::make_unique<Kalburator::Storage::BaselineStore>(
-          QDir(profilePath).filePath(QStringLiteral(".state/.wildpalms-blob-baselines.db"))))
+{}
+
+PalmRuntimeAssembly::~PalmRuntimeAssembly() = default;
+
+PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
+    : QObject(parent)
+    , PalmRuntimeAssembly(profilePath)
 {
     qRegisterMetaType<PalmRunResult>();
+    QDir(profilePath).mkpath(QStringLiteral(".state"));
 
     // Register provider contributions into this runtime's local registry.
     // ProviderManager no longer auto-registers these (K.8a T6); the
@@ -152,8 +138,8 @@ PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
     // discovery), so the calls live in a shared free function.
     WildPalms::Runtime::registerStandardContributions(m_registry.get());
 
-    // C Task 2: stand up the per-profile SQLite hub. The .state/ dir already
-    // exists because BaselineStore uses it (.state/.wildpalms-blob-baselines.db).
+    // C Task 2: stand up the per-profile SQLite hub. The .state/ directory
+    // is created before any runtime-owned stores are opened.
     m_hub = std::make_unique<Kalburator::Sinks::GenericSqliteBackend>(
         QDir(profilePath).filePath(QStringLiteral(".state/hub.db")));
 
@@ -161,99 +147,6 @@ PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
     m_palmRevisionStore = std::make_unique<WildPalms::PalmSync::PalmRevisionStore>(
         QDir(profilePath).filePath(QStringLiteral(".state/palm-revisions.ini")));
     m_registry->registerBackendInstance(QStringLiteral("wp-hub"), m_hub.get());
-
-    m_syncHost = std::make_unique<PalmSyncHost>(m_registry.get());
-    m_engine = std::make_unique<Kalburator::Sync::SyncEngine>(
-        m_registry.get(), m_syncHost.get(), m_shape);
-    m_engine->setBaselineStore(m_baselineStore.get());
-    // Shakedown F10: attach the per-profile conflict store. Without it the
-    // engine's deferred conflicts were never persisted and
-    // rehydratePendingResolutions() early-returned — UI resolutions could
-    // never replay on the next sync.
-    m_engineConflictStore =
-        std::make_unique<Kalburator::Sync::SyncConflictStore>(
-            QDir(profilePath).filePath(QStringLiteral(".state/sync-conflicts.db")));
-    m_engine->setSyncConflictStore(m_engineConflictStore.get());
-    // No-op today (handler set after construction), but keeps this consistent
-    // with the re-install pattern required at every engine-construction site.
-    if (m_conflictHandler)
-        m_engine->conflictRegistry()->setDefaultHandler(m_conflictHandler);
-
-    QObject::connect(m_engine.get(),
-                     &Kalburator::Sync::SyncEngine::conflictDetected,
-                     this, &PalmRuntime::conflictDetected);
-
-    // Shakedown F12: engine diagnostics never reached the in-app Log dock
-    // (lossy-transcode warnings, multi-pass announcements). Bridge them to
-    // runLog; KF6MainWindow pipes runLog into the LogWidget.
-    QObject::connect(m_engine.get(),
-                     &Kalburator::Sync::SyncEngine::transcodingWarning,
-                     this, [this](const QString &calendarId,
-                                  const QString &uid,
-                                  const QStringList &warnings) {
-        Q_EMIT runLog(QStringLiteral(
-            "Transcoding warning on %1 (record %2): data loss: %3")
-            .arg(calendarId, uid, warnings.join(QStringLiteral(", "))));
-    });
-    QObject::connect(m_engine.get(),
-                     &Kalburator::Sync::SyncEngine::syncPassStarted,
-                     this, [this](int pass, int maxPasses) {
-        Q_EMIT runLog(QStringLiteral("Sync pass %1 of %2 — re-running "
-                                     "mappings dirtied by the last hop")
-                          .arg(pass).arg(maxPasses));
-    });
-
-    QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::syncStarted,
-                     this, [this](const QString &mappingId) {
-        m_activeMappingId = mappingId;
-        QString label, icon;
-        resolveMappingIdentity(mappingId, label, icon);
-
-        // P2: Determine whether Palm is source, target, or both in this
-        // mapping. Palm backend IDs are the conduit descriptors' conduitId()
-        // values ("calendar", "contacts", "memo", "todo").
-        QSet<QString> palmIds;
-        for (auto *c : conduits())
-            palmIds.insert(c->conduitId());
-        m_currentPalmIsSource = false;
-        m_currentPalmIsTarget = false;
-        for (const auto &m : m_mappings) {
-            if (m.id == mappingId) {
-                m_currentPalmIsSource = palmIds.contains(m.sourceBackend);
-                m_currentPalmIsTarget = palmIds.contains(m.targetBackend);
-                break;
-            }
-        }
-
-        Q_EMIT mappingSyncStarted(mappingId, label, icon);
-    });
-
-    QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::phaseChanged,
-                     this, [this](Kalburator::Engine::SyncEngine::SyncPhase phase) {
-        // P2: Pause tickle only during phases that issue DLP calls to the
-        // Palm device. CalDAV / network fetch phases keep the tickle alive
-        // so the Palm doesn't think the connection dropped.
-        if (m_device) {
-            if (shouldPauseTickle(phase, m_currentPalmIsSource, m_currentPalmIsTarget))
-                m_device->pauseTickle();
-            else
-                m_device->resumeTickle();
-        }
-    });
-    QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::progressUpdated,
-                     this, [this](int current, int total, const QString &message) {
-        Q_EMIT runProgress(current, total, message);
-    });
-    QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::fetchProgress,
-                     this, [this](const QString &, int current, int total) {
-        if (!m_activeMappingId.isEmpty())
-            Q_EMIT mappingSyncProgress(m_activeMappingId, /*phase=*/0, current, total);
-    });
-    QObject::connect(m_engine.get(), &Kalburator::Sync::SyncEngine::writeProgress,
-                     this, [this](const QString &, int current, int total) {
-        if (!m_activeMappingId.isEmpty())
-            Q_EMIT mappingSyncProgress(m_activeMappingId, /*phase=*/1, current, total);
-    });
 
     // K.8b T6: load the five static Palm plugins in-process.
     registerPalmPlugins();
@@ -279,6 +172,285 @@ PalmRuntime::PalmRuntime(const QString &profilePath, QObject *parent)
 
 PalmRuntime::~PalmRuntime() = default;
 
+QList<Kalburator::Runtime::ProviderSnapshot> PalmRuntime::providerSnapshots() const
+{
+    return m_collectionRuntime ? m_collectionRuntime->snapshot().providers
+                                : QList<Kalburator::Runtime::ProviderSnapshot>{};
+}
+
+QFuture<bool> PalmRuntime::connectProviders()
+{
+    if (!m_collectionRuntime) {
+        QString error;
+        if (!initializeCollectionRuntime(error))
+            return QtFuture::makeReadyValueFuture(false);
+    }
+    return m_collectionRuntime->connectProviders();
+}
+
+bool PalmRuntime::addProvider(const Kalburator::Sync::BackendConfiguration &config,
+                              QString &errorMessage)
+{
+    if (!m_collectionRuntime && !initializeCollectionRuntime(errorMessage))
+        return false;
+    return m_collectionRuntime->addProvider(config, errorMessage);
+}
+
+bool PalmRuntime::updateProvider(const Kalburator::Sync::BackendConfiguration &config,
+                                 QString &errorMessage)
+{
+    if (!m_collectionRuntime && !initializeCollectionRuntime(errorMessage))
+        return false;
+    return m_collectionRuntime->updateProvider(config, errorMessage);
+}
+
+bool PalmRuntime::removeProvider(const QString &providerId, QString &errorMessage)
+{
+    if (!m_collectionRuntime && !initializeCollectionRuntime(errorMessage))
+        return false;
+    return m_collectionRuntime->removeProvider(providerId, errorMessage);
+}
+
+bool PalmRuntime::initializeCollectionRuntime(QString &errorMessage)
+{
+    if (m_collectionRuntime)
+        return true;
+
+    if (m_profilePath.isEmpty()) {
+        errorMessage = QStringLiteral("Palm runtime has no profile path");
+        return false;
+    }
+    QDir(m_profilePath).mkpath(QStringLiteral(".state"));
+
+    Kalburator::Runtime::RuntimeDefinition definition;
+    // CollectionRuntime expects a database filename, while PalmRuntime's
+    // profile path is the containing directory used by the legacy stores.
+    definition.storagePath = QDir(m_profilePath).filePath(
+        QStringLiteral(".state/.wildpalms-runtime.db"));
+    definition.policy.skipUnchangedMappings = true;
+    definition.policy.maxConcurrentMappings = 1;
+    definition.policy.confirmMassDelete = [this](const QString &mappingId,
+                                                  const QString &targetBackendId,
+                                                  int proposedDeletes,
+                                                  int baselineCount) {
+        if (!m_massDeleteGuard)
+            return true;
+        return m_massDeleteGuard->confirmMassDelete(mappingId, targetBackendId,
+                                                    proposedDeletes, baselineCount);
+    };
+
+    if (m_profile)
+        definition.providers = m_profile->accounts();
+
+    // CollectionRuntime loads the stock libkalburator extensions itself. The
+    // Palm conduit objects are consumer-owned and remain alive for the
+    // lifetime of this facade, so pass only those extension objects across
+    // the neutral plugin boundary.
+    for (const auto &plugin : m_palmPlugins) {
+        if (auto *pim = dynamic_cast<WildPalms::Plugins::PimPlugin *>(plugin.get())) {
+            definition.pluginExtensions.append({
+                plugin.get(),
+                mkPalmManifest(QStringLiteral("wildpalms.") + pim->conduitId(),
+                               pim->domain().toString())});
+        }
+    }
+
+    auto lease = QSharedPointer<WildPalms::Runtime::PalmExternalResourceLease>::create(
+        [this](QString &error) {
+            if (!m_device || !m_device->isConnected()) {
+                error = QStringLiteral("Palm device is not connected");
+                return false;
+            }
+            error.clear();
+            return true;
+        },
+        [this](QString &error) {
+            if (!m_device || !m_device->isConnected()) {
+                error = QStringLiteral("Palm device was disconnected");
+                return false;
+            }
+            error.clear();
+            return true;
+        },
+        [this](QString &error) {
+            if (m_device)
+                m_device->flushWrites();
+            error.clear();
+            return true;
+        },
+        [this]() {
+            // CollectionRuntime owns engine cancellation. The device lease
+            // has no second cancellation channel; this callback is reserved
+            // for Palm-specific link teardown if one is needed later.
+            Q_UNUSED(this);
+        },
+        [](const Kalburator::Runtime::RunResult &) {});
+    definition.resources.append({QStringLiteral("palm-device"), lease});
+
+    // The hub is created before the runtime so plugin views can borrow the
+    // same object. The first topology commit transfers ownership to the
+    // runtime through the opaque endpoint factory.
+    definition.backendFactories.append(
+        QSharedPointer<WildPalms::Runtime::PalmBackendFactory>::create(
+                QStringLiteral("hub"), [this]() -> std::unique_ptr<Kalburator::Sync::SyncBackendBase> {
+                if (!m_hub)
+                    return {};
+                return std::unique_ptr<Kalburator::Sync::SyncBackendBase>(m_hub.release());
+            }));
+
+    for (auto *conduit : conduits()) {
+        const QString backendId = conduit->conduitId();
+        definition.backendFactories.append(
+            QSharedPointer<WildPalms::Runtime::PalmBackendFactory>::create(
+                QStringLiteral("palm:") + backendId,
+                [this, conduit]() -> std::unique_ptr<Kalburator::Sync::SyncBackendBase> {
+                    if (!m_device)
+                        return {};
+                    // The current production graph has already materialized
+                    // these Palm adapters. Transfer that exact object to the
+                    // public runtime instead of creating a second device
+                    // backend over the same DLP link.
+                    if (m_registry) {
+                        auto *existing = m_registry->backendInstance(conduit->conduitId());
+                        for (auto it = m_ownedBackends.begin(); it != m_ownedBackends.end(); ++it) {
+                            if (it->get() == existing) {
+                                auto backend = std::move(*it);
+                                m_ownedBackends.erase(it);
+                                return backend;
+                            }
+                        }
+                    }
+                    auto backend = conduit->createPalmBackend(m_device.get());
+                    if (auto *cd = dynamic_cast<WildPalms::PalmSync::PalmChangeDetection *>(backend.get()))
+                        cd->setPalmRevisionStore(m_palmRevisionStore.get());
+                    return backend;
+                }));
+    }
+
+    for (auto it = m_injectedBackends.cbegin(); it != m_injectedBackends.cend(); ++it) {
+        const QString id = it.key();
+        definition.backendFactories.append(
+            QSharedPointer<WildPalms::Runtime::PalmBackendFactory>::create(
+                QStringLiteral("injected:") + id,
+                [this, id]() -> std::unique_ptr<Kalburator::Sync::SyncBackendBase> {
+                    const auto injected = m_injectedBackends.value(id);
+                    for (auto owned = m_ownedBackends.begin(); owned != m_ownedBackends.end(); ++owned) {
+                        if (owned->get() == injected) {
+                            auto backend = std::move(*owned);
+                            m_ownedBackends.erase(owned);
+                            return backend;
+                        }
+                    }
+                    return {};
+                }));
+    }
+
+    for (const auto &spec : std::as_const(m_routeSpecs)) {
+        if (spec.kind != WildPalms::Runtime::RouteSpec::Kind::Filtered)
+            continue;
+        const QString factoryId = QStringLiteral("route:") + spec.lcId;
+        const auto filter = [spec]() {
+            Kalburator::Shape::RecordFilter filter;
+            filter.property = Kalburator::Shape::PropertyId{QStringLiteral("categories")};
+            filter.op = Kalburator::Shape::RecordFilter::Op::Contains;
+            filter.value = spec.categoryName;
+            return filter;
+        }();
+        auto *hub = m_hub.get();
+        definition.backendFactories.append(
+            QSharedPointer<WildPalms::Runtime::PalmBackendFactory>::create(
+                factoryId,
+                [this, hub, spec, filter]()
+                    -> std::unique_ptr<Kalburator::Sync::SyncBackendBase> {
+                    if (!hub)
+                        return {};
+                    auto backend = std::make_unique<Kalburator::Sinks::FilteredCollectionBackend>(
+                        hub, QStringLiteral("wp-hub"), spec.hubCollectionId,
+                        QStringLiteral("route-") + spec.categoryName, filter, nullptr);
+                    // Compatibility consumers may inspect the registry, but
+                    // CollectionRuntime owns the endpoint after this return.
+                    m_registry->registerBackendInstance(spec.lcId, backend.get());
+                    return backend;
+                }));
+    }
+
+    m_collectionRuntime = Kalburator::Runtime::CollectionRuntime::create(
+        definition, errorMessage);
+    if (!m_collectionRuntime)
+        return false;
+
+    m_collectionRuntime->setEventSink([this](const Kalburator::Runtime::RuntimeEvent &event) {
+        using Kind = Kalburator::Runtime::RuntimeEvent::Kind;
+        if (event.kind == Kind::ConflictDetected)
+            Q_EMIT conflictDetected(event.conflict);
+        else if (event.kind == Kind::RunProgress)
+            Q_EMIT runProgress(event.progress, 100, event.message);
+        else if (event.kind == Kind::RunStarted)
+            Q_EMIT runLog(QStringLiteral("Runtime sync started"));
+        else if (event.kind == Kind::ProviderStateChanged && !event.providerError.isEmpty())
+            Q_EMIT runLog(event.providerError);
+    });
+    return true;
+}
+
+bool PalmRuntime::applyCollectionRuntimeTopology(QString &errorMessage)
+{
+    if (!m_collectionRuntime) {
+        errorMessage = QStringLiteral("CollectionRuntime is not initialized");
+        return false;
+    }
+
+    Kalburator::Runtime::TopologyDefinition desired;
+    desired.replaceProviders = true;
+    if (m_profile)
+        desired.providers = m_profile->accounts();
+
+    desired.endpoints.append({QStringLiteral("wp-hub"), QStringLiteral("hub"), {}, {}, {}, {}});
+    for (auto *conduit : conduits()) {
+        if (!m_device)
+            continue;
+        const QString id = conduit->conduitId();
+        desired.endpoints.append({id, QStringLiteral("palm:") + id, {}, {},
+                                  QStringLiteral("palm-device"),
+                                  {QStringLiteral("palm:") + conduit->domain().toString()}});
+    }
+    for (const auto &spec : std::as_const(m_routeSpecs)) {
+        if (spec.kind == WildPalms::Runtime::RouteSpec::Kind::Filtered)
+            desired.endpoints.append({spec.lcId, QStringLiteral("route:") + spec.lcId,
+                                      {}, {}, {}, {QStringLiteral("route-") + spec.categoryName}});
+    }
+
+    QSet<QString> endpointIds;
+    for (const auto &endpoint : std::as_const(desired.endpoints))
+        endpointIds.insert(endpoint.id);
+    for (const auto &mapping : std::as_const(m_mappings)) {
+        for (const auto &backendId : {mapping.sourceBackend, mapping.targetBackend}) {
+            if (endpointIds.contains(backendId) || backendId.isEmpty())
+                continue;
+            if (m_injectedBackends.contains(backendId)) {
+                desired.endpoints.append({backendId, QStringLiteral("injected:") + backendId,
+                                          {}, {}, {}, {}});
+                endpointIds.insert(backendId);
+                continue;
+            }
+            const int separator = backendId.indexOf(QLatin1Char(':'));
+            if (separator <= 0)
+                continue;
+            const QString providerId = backendId.left(separator);
+            desired.endpoints.append({backendId, {}, {}, providerId, {}, {}});
+            endpointIds.insert(backendId);
+        }
+    }
+    desired.mappings = m_mappings;
+    const auto result = m_collectionRuntime->applyTopology(desired);
+    if (!result.committed) {
+        errorMessage = result.errorMessage;
+        return false;
+    }
+    m_collectionRuntimeTopologyReady = true;
+    return true;
+}
+
 void PalmRuntime::registerPalmPlugins()
 {
     // Substrate A1: fresh conduit instances from the single-source-of-truth
@@ -299,8 +471,7 @@ void PalmRuntime::registerPalmPlugins()
     // CalDav/CardDav/Akonadi backend contributions. Per-instance m_shape means a
     // second PalmRuntime re-runs this into its own fresh registries (the old
     // s_globalRegistrationDone guard is no longer needed).
-    m_pluginManager =
-        std::make_unique<Kalburator::PluginManager>(m_registry.get(), m_shape);
+    Kalburator::PluginManager pluginManager(m_registry.get(), m_shape);
 
     static Kalburator::UniversalStoragePlugin  s_universal;
     static Kalburator::Blob::BlobPlugin        s_blob;
@@ -325,11 +496,15 @@ void PalmRuntime::registerPalmPlugins()
             mkPalmManifest(QStringLiteral("wildpalms.") + c->conduitId(),
                            c->domain().toString()) });
 
-    if (!m_pluginManager->loadInProcess(items)) {
+    if (!pluginManager.loadInProcess(items)) {
         qWarning() << "[PalmRuntime] plugin load rejected:"
-                   << m_pluginManager->rejected().size();
+                   << pluginManager.rejected().size();
         return;
     }
+
+    m_enabledPluginIds.clear();
+    for (const auto &item : items)
+        m_enabledPluginIds.append(item.second.id);
 
     for (auto &c : conduitPlugins)
         m_palmPlugins.push_back(std::move(c));
@@ -384,8 +559,7 @@ void PalmRuntime::ensureHubCollections()
     }
 }
 
-void PalmRuntime::buildRouteLogicalCalendars(
-    QList<Kalburator::Sync::LogicalCalendar> &lcs)
+void PalmRuntime::buildRouteLogicalCalendars()
 {
     using Kalburator::Sync::LogicalCalendar;
     using Kalburator::Sync::CalendarBackendBinding;
@@ -397,68 +571,54 @@ void PalmRuntime::buildRouteLogicalCalendars(
     // UI; the route is still materialized whenever a spec is produced (filtering
     // works by name even before the device slot is bound).
     m_routeStatuses.clear();
+    m_routeSpecs.clear();
     const auto cs = conduits();
+    QList<LogicalCalendar> baseCalendars;
+    for (auto *conduit : cs) {
+        if (!m_registry->backendInstance(conduit->conduitId()))
+            continue;
+        const QString domain = conduit->domain().toString();
+        LogicalCalendar lc;
+        lc.id = QStringLiteral("wp-") + domain;
+        lc.domain = Kalburator::Shape::DomainId{domain};
+        lc.displayName = domain;
+        lc.syncEnabled = true;
+        CalendarBackendBinding hub;
+        hub.backendId = QStringLiteral("wp-hub");
+        hub.calendarId = domain;
+        hub.role = BackendRole::Primary;
+        lc.bindings.append(hub);
+        CalendarBackendBinding palm;
+        palm.backendId = conduit->conduitId();
+        palm.calendarId = QStringLiteral("palm:") + domain;
+        palm.role = BackendRole::Sync1;
+        palm.syncOrder = 1;
+        lc.bindings.append(palm);
+        baseCalendars.append(lc);
+    }
+    auto translated = Kalburator::Sync::generateMappings(
+        baseCalendars, Kalburator::Sync::SyncTopology::Star);
     for (const auto &persisted : m_mappings) {
         const auto t = WildPalms::Runtime::translateRouteSpec(persisted, cs);
         if (t.status != WildPalms::Runtime::RouteStatus::NotARoute)
             m_routeStatuses.insert(persisted.id, t.status);
         if (!t.spec) continue;
         const auto &s = *t.spec;
-
-        QString primaryBackendId = QStringLiteral("wp-hub");
-        QString primaryColId     = s.hubCollectionId;
-
+        m_routeSpecs.insert(s.lcId, s);
+        auto route = persisted;
+        route.id = s.kind == WildPalms::Runtime::RouteSpec::Kind::Filtered
+            ? s.lcId
+            : QStringLiteral("wp-route-") + persisted.id;
         if (s.kind == WildPalms::Runtime::RouteSpec::Kind::Filtered) {
-            Kalburator::Shape::RecordFilter filter;
-            filter.property = Kalburator::Shape::PropertyId{QStringLiteral("categories")};
-            filter.op       = Kalburator::Shape::RecordFilter::Op::Contains;
-            filter.value    = s.categoryName;
-
-            const QString virtualColId =
-                QStringLiteral("route-") + s.categoryName;
-
-            // v0.59 ctor: parentBackend, parentBackendId ("wp-hub" matches how
-            // the hub was registered in the PalmRuntime ctor), parentCollectionId,
-            // virtualCollectionId, filter, optional registry (passed so the FCB
-            // auto-nulls its parent on BackendRegistry::backendInstanceUnregistered
-            // — clean failure instead of UB if the hub is ever unregistered).
-            auto view = std::make_unique<Kalburator::Sinks::FilteredCollectionBackend>(
-                m_hub.get(),
-                QStringLiteral("wp-hub"),
-                s.hubCollectionId,
-                virtualColId,
-                filter,
-                m_registry.get());
-
-            m_registry->registerBackendInstance(s.lcId, view.get());
-            m_routeViews.push_back(std::move(view));
-
-            primaryBackendId = s.lcId;
-            primaryColId     = virtualColId;
+            route.sourceBackend = s.lcId;
+            route.sourceCalendar = QStringLiteral("route-") + s.categoryName;
+        } else {
+            route.sourceBackend = QStringLiteral("wp-hub");
+            route.sourceCalendar = s.hubCollectionId;
         }
-        // else Kind::Direct: Primary stays wp-hub:<domain>. No wrapper needed.
-
-        LogicalCalendar lc;
-        lc.id          = s.lcId;
-        lc.domain      = Kalburator::Shape::DomainId{s.domain};
-        lc.displayName = s.lcId;
-        lc.syncEnabled = true;
-
-        CalendarBackendBinding primary;
-        primary.backendId  = primaryBackendId;
-        primary.calendarId = primaryColId;
-        primary.role       = BackendRole::Primary;
-        lc.bindings.append(primary);
-
-        CalendarBackendBinding sync;
-        sync.backendId  = s.remoteBackendId;
-        sync.calendarId = s.remoteCollectionId;
-        sync.role       = BackendRole::Sync1;
-        sync.syncOrder  = 1;
-        lc.bindings.append(sync);
-
-        lcs.append(lc);
+        translated.append(route);
     }
+    m_mappings = std::move(translated);
     Q_EMIT routeStatusesChanged();
 }
 
@@ -495,8 +655,8 @@ void PalmRuntime::cancelConnect()
 
 void PalmRuntime::cancelSync()
 {
-    if (m_activeSyncWatcher) {
-        m_activeSyncWatcher->cancel();
+    if (m_collectionRuntimeTopologyReady && m_collectionRuntime) {
+        m_collectionRuntime->cancel();
     }
 }
 
@@ -600,53 +760,19 @@ void PalmRuntime::finishConnect()
         qDebug() << "[PalmRuntime::finishConnect] Registered backend plugin:" << id;
     }
 
-    // C Task 4: build domain-level Palm<->hub Star mappings via generateMappings.
-    // Each connected Palm backend is wired to its corresponding hub collection
-    // using LogicalCalendar/generateMappings (Star topology = hub-and-spoke).
-    // The hub (wp-hub) is Primary; each Palm backend collection is Sync1.
-    using Kalburator::Sync::LogicalCalendar;
-    using Kalburator::Sync::CalendarBackendBinding;
-    using Kalburator::Sync::BackendRole;
-    QList<LogicalCalendar> lcs;
-    // Substrate A1: per-conduit Palm<->hub Star wiring from the descriptors.
-    // (palmId, hubCol, palmCol) = (conduitId, domain, "palm:" + domain) —
-    // reproduces the old static table exactly (memo: id "memo", domain "note").
-    for (auto *c : conduits()) {
-        const QString palmId  = c->conduitId();
-        const QString hubCol  = c->domain().toString();
-        const QString palmCol = QStringLiteral("palm:") + hubCol;
-        if (!m_registry->backendInstance(palmId)) continue;   // backend not connected this session
-        LogicalCalendar lc;
-        lc.id = QStringLiteral("wp-%1").arg(hubCol);
-        lc.domain = Kalburator::Shape::DomainId{hubCol};
-        lc.displayName = hubCol;
-        lc.syncEnabled = true;
-        CalendarBackendBinding hubB;
-        hubB.backendId = QStringLiteral("wp-hub");
-        hubB.calendarId = hubCol;
-        hubB.role = BackendRole::Primary;
-        lc.bindings.append(hubB);
-        CalendarBackendBinding palmB;
-        palmB.backendId = palmId;
-        palmB.calendarId = palmCol;
-        palmB.role = BackendRole::Sync1;
-        palmB.syncOrder = 1;
-        lc.bindings.append(palmB);
-        lcs.append(lc);
-    }
-    // generateMappings emits TwoWay mappings with conflictPolicy=AskUser. This
-    // is a deliberate change from the old per-slot RawFiles default
-    // (LastWriteWins): on the hub topology, Palm<->hub conflicts surface to
-    // WildPalms' existing conflict handlers / deferred conflict store for review
-    // rather than silently auto-resolving and risking data loss.
-    // Translate persisted user mappings into per-route LCs. Each Filtered
-    // route materializes a FilteredCollectionBackend wrapping the hub; each
-    // Direct route binds the LC's Primary to wp-hub directly. lcs is appended
-    // to in place.
-    buildRouteLogicalCalendars(lcs);
+    // Route rows are translated into runtime-owned specs. CollectionRuntime
+    // materializes the physical Palm, hub, and filtered-route endpoints once
+    // the complete desired topology is applied below.
+    buildRouteLogicalCalendars();
 
-    m_mappings = Kalburator::Sync::generateMappings(lcs, Kalburator::Sync::SyncTopology::Star);
-    m_engine->setSyncMappings(m_mappings);
+    QString runtimeError;
+    if (initializeCollectionRuntime(runtimeError)
+        && applyCollectionRuntimeTopology(runtimeError)) {
+        qDebug() << "[PalmRuntime] CollectionRuntime topology committed";
+    } else {
+        qWarning() << "[PalmRuntime] CollectionRuntime cutover preparation failed:"
+                   << runtimeError;
+    }
 
     Q_EMIT deviceConnected();
     Q_EMIT readyForSync();
@@ -660,8 +786,6 @@ void PalmRuntime::reloadMappings(const QJsonArray &json)
             continue;
         m_mappings.append(Kalburator::Sync::syncMappingFromJson(v.toObject()));
     }
-    if (m_engine)
-        m_engine->setSyncMappings(m_mappings);
 }
 
 void PalmRuntime::disconnectDevice() {
@@ -706,17 +830,27 @@ void PalmRuntime::registerBackendInstanceForTest(const QString &id,
 {
     if (!backend) return;
     m_registry->registerBackendInstance(id, backend.get());
+    m_injectedBackends.insert(id, backend.get());
     m_ownedBackends.push_back(std::move(backend));
 }
 
 void PalmRuntime::setMappingsForTest(QList<Kalburator::Sync::SyncMapping> mappings) {
     m_mappings = std::move(mappings);
-    m_engine->setSyncMappings(m_mappings);
+    // Injected backends use the same runtime topology path as connected
+    // production. The external Palm lease is simply idle when no device was
+    // supplied, so these tests do not need a second consumer engine graph.
+    QString error;
+    if (initializeCollectionRuntime(error) && applyCollectionRuntimeTopology(error))
+        return;
+    qWarning() << "[PalmRuntime] injected topology was not committed:" << error;
 }
 
 void PalmRuntime::setProfile(Profile *profile)
 {
     m_profile = profile;
+    QString runtimeError;
+    if (!m_collectionRuntime)
+        initializeCollectionRuntime(runtimeError);
     // Make saved mappings available immediately (before device connect), so
     // palmMappings() and any pre-connect logic reflect the persisted set.
     // finishConnect() reloads again to stay authoritative across reconnects.
@@ -732,37 +866,52 @@ void PalmRuntime::loadMappingsFromProfile()
         if (v.isObject())
             m_mappings.append(Kalburator::Sync::syncMappingFromJson(v.toObject()));
     }
-    if (m_engine)
-        m_engine->setSyncMappings(m_mappings);
 }
 
 void PalmRuntime::setConflictHandler(
     Kalburator::Conflict::ConflictHandler *handler)
 {
     m_conflictHandler = handler;
-    if (m_engine) {
-        m_engine->conflictRegistry()->setDefaultHandler(handler);
-    }
 }
 
 void PalmRuntime::setMassDeleteGuard(Kalburator::Conflict::IMassDeleteGuard *guard)
 {
-    if (m_engine) {
-        m_engine->setMassDeleteGuard(guard);
+    m_massDeleteGuard = guard;
+    if (m_collectionRuntime) {
+        Kalburator::Runtime::RuntimePolicy policy;
+        policy.skipUnchangedMappings = true;
+        policy.maxConcurrentMappings = 1;
+        policy.confirmMassDelete = [this](const QString &mappingId,
+                                          const QString &targetBackendId,
+                                          int proposedDeletes,
+                                          int baselineCount) {
+            if (!m_massDeleteGuard)
+                return true;
+            return m_massDeleteGuard->confirmMassDelete(mappingId, targetBackendId,
+                                                        proposedDeletes, baselineCount);
+        };
+        QString error;
+        if (!m_collectionRuntime->updatePolicy(policy, error))
+            qWarning() << "[PalmRuntime] runtime mass-delete policy update failed:" << error;
+        return;
     }
 }
 
 Kalburator::Conflict::ConflictHandler *
 PalmRuntime::conflictHandlerForTest() const
 {
-    if (!m_engine) return nullptr;
-    return m_engine->conflictRegistry()->handlerFor(QString{});
+    return m_conflictHandler;
 }
 
 Kalburator::Sync::SyncConflictStore *
 PalmRuntime::syncConflictStore() const
 {
-    return m_engine ? m_engine->syncConflictStore() : nullptr;
+    auto *self = const_cast<PalmRuntime *>(this);
+    if (!self->m_compatConflictStore) {
+        self->m_compatConflictStore = std::make_unique<Kalburator::Sync::SyncConflictStore>(
+            QDir(self->m_profilePath).filePath(QStringLiteral(".state/sync-conflicts.db")));
+    }
+    return self->m_compatConflictStore.get();
 }
 
 Kalburator::Conflict::ConflictRecord
@@ -795,12 +944,7 @@ PalmRuntime::toConflictRecord(const Kalburator::Sync::ConflictInfo &info)
 }
 
 QList<QString> PalmRuntime::enabledPluginIds() const {
-    QList<QString> ids;
-    if (m_pluginManager) {
-        for (const auto &lp : m_pluginManager->loaded())
-            ids.append(lp.id);
-    }
-    return ids;
+    return m_enabledPluginIds;
 }
 
 QList<Kalburator::Sync::SyncMapping> PalmRuntime::palmMappings() const {
@@ -883,8 +1027,7 @@ static QFuture<PalmRunResult> makeReadyFuture(PalmRunResult r) {
 
 // Re-entrancy backstop shared by the public entry points (hotSync/fullSync/
 // runMirror/clobberSync). The UI guards on isSyncRunning() first; this keeps
-// programmatic callers from clobbering m_syncPromise/m_syncIds/m_syncAccum
-// and stranding an in-flight loop's future.
+// programmatic callers from starting a second active watcher.
 static bool syncAlreadyRunning_(const PalmRuntime *self) {
     if (!self->isSyncRunning())
         return false;
@@ -893,209 +1036,48 @@ static bool syncAlreadyRunning_(const PalmRuntime *self) {
     return true;
 }
 
-QFuture<PalmRunResult> PalmRuntime::runAllMappings(int maxPasses, bool skipUnchanged)
+QFuture<PalmRunResult> PalmRuntime::runCollectionRuntime(
+    const Kalburator::Runtime::RunRequest &request)
 {
-    QList<QString> ids;
-    for (const auto &m : m_mappings) {
-        if (m.enabled)
-            ids.append(m.id);
-    }
-    if (ids.isEmpty()) {
-        // F11: the caller already emitted runStarted — answer it, or the
-        // dashboard never leaves its Syncing state.
-        const auto r = makeRejectedResult(QStringLiteral(
-            "No enabled sync targets — nothing to sync"));
-        Q_EMIT runFinished(r);
-        Q_EMIT syncCompleted();
-        return makeReadyFuture(r);
-    }
-
-    // Re-entrancy guard: a multi-pass loop is already in flight (m_syncPromise
-    // is set until the loop finalizes). Starting another run here would clobber
-    // m_syncPromise/m_syncIds/m_syncAccum and strand the first caller's future.
-    // The public entry points pre-guard on isSyncRunning() without emitting
-    // runStarted; this backstop deliberately emits NO signals — the in-flight
-    // run owns the current runStarted/runFinished pair.
-    if (m_syncPromise) {
-        qWarning() << "[PalmRuntime] runAllMappings() called while a sync loop is "
-                      "already in flight — ignoring the re-entrant request";
+    if (!m_collectionRuntime || !m_collectionRuntimeTopologyReady)
         return makeReadyFuture(makeRejectedResult(
-            QStringLiteral("A sync is already running")));
-    }
+            QStringLiteral("CollectionRuntime topology is not ready")));
 
-    // P2 Investigation (2026-05-27): pauseTickle() rationale
-    // Historical context (May 2, 2026, commit 0fefb6b): The original TickleWorker
-    // ran on a separate thread and interleaved dlp_GetSysDateTime() with DLP calls
-    // from QtConcurrent pool threads, corrupting the DLP session state. The fix was
-    // to synchronize by pausing the tickle before bulk DLP work.
-    //
-    // Current architecture: PalmDeviceAccess owns m_linkThread (a QThread). All
-    // DLP calls marshal to m_implOwner on m_linkThread via BlockingQueuedConnection,
-    // and PalmTickle is parented to m_implOwner, so both tickle timer and DLP calls
-    // run on m_linkThread's event loop. BlockingQueuedConnection blocks the caller
-    // until the link thread finishes, guaranteeing serialization — the tickle timer
-    // can ONLY fire between (or outside) DLP operations, never during them.
-    //
-    // Hazard assessment: Cross-thread race (the original issue) is eliminated.
-    // However, if dlp_GetSysDateTime and in-progress DLP operations have protocol-level
-    // conflicts on the Palm wire (independent of thread safety), the pause is still
-    // necessary. Task 2.2 narrowed this to apply-phase only via phaseChanged signal;
-    // the blanket pre-run pause is removed — the tickle is now paused/resumed per
-    // phase via the phaseChanged lambda in the constructor.
-
-    // Task 12: multi-hop fixpoint loop. WildPalms sync is a depth-1 star
-    // (Palm — Hub — Remote), so a single pass of the mapping set crosses only
-    // ONE hop. Re-run the set until a pass moves no data (or fails/cancels/caps)
-    // so both hops propagate in one user action.
-    //
-    // Mode is applied only after the guards, so an early-return (no mappings /
-    // re-entrant) never leaks settings into the next run or clobbers an in-flight loop.
-    m_engine->setSkipUnchangedMappings(skipUnchanged);
-    m_syncMaxPass = maxPasses;
-
-    m_syncIds   = ids;
-    m_syncPass  = 0;
-    m_syncAccum = PalmRunResult{};
-    m_syncAccum.success   = true;
-    m_syncAccum.startTime = QDateTime::currentDateTimeUtc();
-
-    // K.8b T16 + Plan 8 B.3: the watcher (set up per-pass in dispatchSyncPass_)
-    // both propagates cancelSync() into SyncEngine::onCancelObserved AND delivers
-    // the result. Qt6's QFuture::then() drops its continuation when the source
-    // future is canceled, so runFinished must be emitted from the watcher's
-    // finished slot — it fires on both completion and cancel, on this object's
-    // thread (no invokeMethod marshalling needed). The caller's promise is held
-    // in m_syncPromise and finalized once, at the END of the loop.
-    m_syncPromise = std::make_shared<QPromise<PalmRunResult>>();
-    m_syncPromise->start();
-    QFuture<PalmRunResult> resultFuture = m_syncPromise->future();
-
-    dispatchSyncPass_();          // device stays connected across all passes
-    return resultFuture;
-}
-
-void PalmRuntime::dispatchSyncPass_()
-{
-    ++m_syncPass;
-
-    // Plan 8 B.1: canonical subset dispatch (was runSyncFuture(ids, …)).
-    Kalburator::Sync::SyncRequest req;
-    req.mappingIds = m_syncIds;
-    req.behavior   = Kalburator::Sync::SyncEngine::SyncBehavior::Unmonitored;
-    auto engineFuture = m_engine->runSync(req);
-
-    if (m_activeSyncWatcher) {
-        m_activeSyncWatcher->cancel();
-        m_activeSyncWatcher->deleteLater();
-    }
-    auto *watcher = new QFutureWatcher<void>(this);
-    m_activeSyncWatcher = watcher;
-    QObject::connect(watcher, &QFutureWatcher<void>::finished,
-            this, [this, watcher, engineFuture]() {
-        // B.4: read via resultAt(0), not results() (empty after cancel).
-        // The multi-mapping iface adds cancellation-marker results even
-        // when canceled (setAddResultsIfCanceledEnabled); guard anyway.
-        QList<Kalburator::Sync::SyncResult> results;
-        if (engineFuture.resultCount() > 0)
-            results = engineFuture.resultAt(0);
-
-        // Fold this pass into m_syncAccum (accumulated across all passes).
-        int linkLostCount = 0;
-        bool anyCancelled = engineFuture.isCanceled();
-        for (int i = 0; i < results.size(); ++i) {
-            const auto &sr = results[i];
-            if (sr.cancelled)
-                anyCancelled = true;
-            if (!sr.success && !sr.cancelled && !sr.skipped) {
-                m_syncAccum.success = false;
-                // F12: surface per-mapping failures in the Log dock as they
-                // happen, not only via the folded run summary at the end.
-                Q_EMIT runLog(QStringLiteral("Mapping failed: %1")
-                                  .arg(sr.errorMessage));
-                if (sr.errorMessage.contains(QLatin1String("Palm link"),
-                                             Qt::CaseInsensitive)) {
-                    ++linkLostCount;
-                } else if (m_syncAccum.errorMessage.isEmpty()
-                           && !sr.errorMessage.isEmpty()) {
-                    m_syncAccum.errorMessage = sr.errorMessage;
-                }
-            }
-            // Shakedown F17: accumulate per-conduit stats (keyed by the
-            // mapping's Palm conduit id) instead of folding every domain
-            // under a hardcoded "calendar" key that nothing read.
-            QString key;
-            if (i < m_syncIds.size()) {
-                for (const auto &m : m_mappings) {
-                    if (m.id == m_syncIds[i]) {
-                        key = isPalmConduitBackendId(m.sourceBackend)
-                                  ? m.sourceBackend : m.targetBackend;
+    return m_collectionRuntime->run(request).then(
+        [this](const Kalburator::Runtime::RunResult &result) {
+            PalmRunResult out;
+            out.startTime = QDateTime::currentDateTimeUtc();
+            out.endTime = out.startTime;
+            out.success = result.success;
+            out.cancelled = result.cancelled;
+            out.errorMessage = result.errorMessage;
+            if (!out.success)
+                qWarning() << "[PalmRuntime] CollectionRuntime run failed:" << out.errorMessage;
+            for (const auto &mapping : result.mappings) {
+                PalmRunResult::PluginStats stats;
+                stats.created = mapping.targetStats.created;
+                stats.updated = mapping.targetStats.updated;
+                stats.deleted = mapping.targetStats.deleted;
+                stats.unchanged = mapping.targetStats.unchanged;
+                stats.errors = mapping.success ? 0 : 1;
+                QString statsKey = mapping.mappingId;
+                for (const auto &configured : m_mappings) {
+                    if (configured.id == mapping.mappingId) {
+                        statsKey = configured.targetBackend;
                         break;
                     }
                 }
+                out.perPluginStats.insert(statsKey, stats);
+                if (!mapping.success && !mapping.errorMessage.isEmpty())
+                    Q_EMIT runLog(QStringLiteral("Mapping failed: %1")
+                                      .arg(mapping.errorMessage));
+                Q_EMIT mappingSyncFinished(mapping.mappingId, 0, 0, 0,
+                                           mapping.success && !mapping.cancelled);
             }
-            if (key.isEmpty())
-                key = QStringLiteral("other");
-            auto &acc = m_syncAccum.perPluginStats[key];
-            acc.created   += sr.targetStats.created;
-            acc.updated   += sr.targetStats.updated;
-            acc.deleted   += sr.targetStats.deleted;
-            acc.unchanged += sr.targetStats.unchanged;
-            acc.errors    += (sr.success ? 0 : 1);
-        }
-        // Layer B: collapse N "Palm link lost" errors into one summary so
-        // the UI shows a single message instead of repeating the same string.
-        if (linkLostCount > 0 && m_syncAccum.errorMessage.isEmpty()) {
-            m_syncAccum.errorMessage = QStringLiteral(
-                "HotSync aborted: Palm device disconnected "
-                "(%1 of %2 mappings affected)").arg(linkLostCount).arg(results.size());
-        }
-        // A cancelled run is not a successful one (F13: but it is not an
-        // error either — the flag lets the UI pick a neutral tone).
-        if (anyCancelled) {
-            m_syncAccum.success = false;
-            m_syncAccum.cancelled = true;
-            if (m_syncAccum.errorMessage.isEmpty())
-                m_syncAccum.errorMessage = QStringLiteral("Sync cancelled");
-        }
-
-        // Per-mapping finished — chips fill their counts here (run-end only;
-        // the engine has no per-mapping completion signal). Emitted per pass so
-        // the UI reflects each hop's movement.
-        for (int i = 0; i < results.size() && i < m_syncIds.size(); ++i) {
-            const auto &sr = results[i];
-            const auto &ts = sr.targetStats;
-            Q_EMIT mappingSyncFinished(m_syncIds[i], ts.created, ts.updated, ts.deleted,
-                                       sr.success && !sr.cancelled);
-        }
-
-        if (m_activeSyncWatcher == watcher)
-            m_activeSyncWatcher = nullptr;
-        watcher->deleteLater();
-
-        // Loop or finalize. The device link is a PalmRuntime member and stays
-        // connected across passes — flushWrites/resumeTickle/runFinished/
-        // syncCompleted/promise.finish happen ONCE, only when the loop ends.
-        if (WildPalms::Runtime::shouldContinueSync(results, m_syncPass, m_syncMaxPass)) {
-            dispatchSyncPass_();          // next hop; prior engine run is complete
-            return;
-        }
-
-        // Single finalize funnel for ALL stop reasons (fixpoint reached, cap hit,
-        // mapping failure, or cancel — shouldContinueSync returned false for one of
-        // them). Everything below MUST run exactly once per run.
-        // Do not add an early return between the shouldContinueSync check and here.
-        m_syncAccum.endTime = QDateTime::currentDateTimeUtc();
-        if (m_device) m_device->flushWrites();    // close last mapping's DB before EndOfSync
-        if (m_device) m_device->resumeTickle();
-        m_activeMappingId.clear();
-        Q_EMIT runFinished(m_syncAccum);
-        Q_EMIT syncCompleted();
-
-        m_syncPromise->addResult(m_syncAccum);
-        m_syncPromise->finish();
-        m_syncPromise.reset();
-    });
-    watcher->setFuture(engineFuture);
+            Q_EMIT runFinished(out);
+            Q_EMIT syncCompleted();
+            return out;
+        });
 }
 
 QFuture<PalmRunResult> PalmRuntime::hotSync() {
@@ -1113,7 +1095,17 @@ QFuture<PalmRunResult> PalmRuntime::hotSync() {
         Q_EMIT syncCompleted();
         return makeReadyFuture(r);
     }
-    return runAllMappings(/*maxPasses=*/3, /*skipUnchanged=*/true);
+    if (m_collectionRuntimeTopologyReady) {
+        Kalburator::Runtime::RunRequest request;
+        request.selection = Kalburator::Runtime::RunSelection::allEnabled();
+        request.intent = Kalburator::Runtime::RunIntent::Normal;
+        return runCollectionRuntime(request);
+    }
+    const auto r = makeRejectedResult(QStringLiteral(
+        "Sync topology is not committed"));
+    Q_EMIT runFinished(r);
+    Q_EMIT syncCompleted();
+    return makeReadyFuture(r);
 }
 
 QFuture<PalmRunResult> PalmRuntime::fullSync()
@@ -1123,12 +1115,17 @@ QFuture<PalmRunResult> PalmRuntime::fullSync()
             QStringLiteral("A sync is already running")));
 
     Q_EMIT runStarted(QStringLiteral("FullSync"));
-    // Clear all baselines so the engine treats this as a fresh first sync.
-    for (const auto &m : m_mappings)
-        m_baselineStore->clearMappingV3(m.id);
-    // Task 12: full re-diff every pass (no skip-unchanged); 2 passes suffice for
-    // the depth-1 star.
-    return runAllMappings(/*maxPasses=*/2, /*skipUnchanged=*/false);
+    if (m_collectionRuntimeTopologyReady) {
+        Kalburator::Runtime::RunRequest request;
+        request.selection = Kalburator::Runtime::RunSelection::allEnabled();
+        request.intent = Kalburator::Runtime::RunIntent::FullRediff;
+        return runCollectionRuntime(request);
+    }
+    const auto r = makeRejectedResult(QStringLiteral(
+        "Sync topology is not committed"));
+    Q_EMIT runFinished(r);
+    Q_EMIT syncCompleted();
+    return makeReadyFuture(r);
 }
 
 QFuture<PalmRunResult> PalmRuntime::runMirror(MirrorDir dir, const QString &modeLabel)
@@ -1152,92 +1149,22 @@ QFuture<PalmRunResult> PalmRuntime::runMirror(MirrorDir dir, const QString &mode
         return makeReadyFuture(r);
     }
 
-    using Direction = Kalburator::Sync::ExecutionOverride::Direction;
-    Kalburator::Sync::ExecutionOverride ov;
-    ov.direction = (dir == MirrorDir::PalmToPC) ? Direction::MirrorAToB
-                                                 : Direction::MirrorBToA;
-
-    // P2: Blanket pauseTickle() removed here (same as runAllMappings).
-    // Tickle is now paused/resumed per phase via the phaseChanged lambda
-    // in the constructor. The resumeTickle() in
-    // the then() lambda below remains as a safety net.
-
-    // For M3: calendar-only, single mapping. Dispatch only the first enabled
-    // mapping; Plan 3 (M4) will add multi-mapping iteration once other plugins
-    // are re-enabled.
-    //
-    // Plan 8 B.2: canonical single-mapping dispatch (was
-    // runSyncFuture(id, ov)). The ==1 shape is the only one that consults
-    // executionOverride.direction in full.
-    Kalburator::Sync::SyncRequest req;
-    req.mappingIds        = { ids.first() };
-    req.executionOverride = ov;
-    auto engineFuture = m_engine->runSync(req);
-
-    // K.8b T16 + Plan 8 B.3: watcher-based result delivery (see
-    // runAllMappings). On this path the cancel caveat is acute: the
-    // canonical single-mapping branch .then()-wraps dispatchSingleNative's
-    // future, and the wrapper loses the F2 Task 23 cancellation result —
-    // after a cancel the engine future may carry NO result at all.
-    auto promise = std::make_shared<QPromise<PalmRunResult>>();
-    promise->start();
-    QFuture<PalmRunResult> resultFuture = promise->future();
-
-    if (m_activeSyncWatcher) {
-        m_activeSyncWatcher->cancel();
-        m_activeSyncWatcher->deleteLater();
+    if (m_collectionRuntimeTopologyReady) {
+        Kalburator::Runtime::RunRequest request;
+        request.selection = Kalburator::Runtime::RunSelection::allEnabled();
+        request.intent = Kalburator::Runtime::RunIntent::Mirror;
+        request.mirrorDirection = dir == MirrorDir::PalmToPC
+            ? Kalburator::Runtime::MirrorDirection::SourceToTarget
+            : Kalburator::Runtime::MirrorDirection::TargetToSource;
+        return runCollectionRuntime(request);
     }
-    auto *watcher = new QFutureWatcher<void>(this);
-    m_activeSyncWatcher = watcher;
-    QObject::connect(watcher, &QFutureWatcher<void>::finished,
-            this, [this, watcher, engineFuture, promise]() {
-        // B.4: resultAt(0), not results() (empty after cancel).
-        QList<Kalburator::Sync::SyncResult> results;
-        if (engineFuture.resultCount() > 0)
-            results = engineFuture.resultAt(0);
 
-        Kalburator::Sync::SyncResult sr;
-        if (!results.isEmpty()) {
-            sr = results.first();
-        } else {
-            sr.success   = false;
-            sr.cancelled = engineFuture.isCanceled();
-            if (!sr.cancelled)
-                sr.errorMessage = QStringLiteral("Sync engine returned no result");
-        }
+    const auto notReady = makeRejectedResult(QStringLiteral(
+        "Sync topology is not committed"));
+    Q_EMIT runFinished(notReady);
+    Q_EMIT syncCompleted();
+    return makeReadyFuture(notReady);
 
-        PalmRunResult r;
-        r.startTime = QDateTime::currentDateTimeUtc();
-        r.success   = sr.success && !sr.cancelled;
-        r.cancelled = sr.cancelled;   // F13
-        // K.9: propagate engine error message to the UI (see runAllMappings).
-        if (!r.success)
-            r.errorMessage = sr.cancelled ? QStringLiteral("Sync cancelled")
-                                          : sr.errorMessage;
-
-        PalmRunResult::PluginStats stats;
-        stats.created   = sr.targetStats.created;
-        stats.updated   = sr.targetStats.updated;
-        stats.deleted   = sr.targetStats.deleted;
-        stats.unchanged = sr.targetStats.unchanged;
-        stats.errors    = r.success ? 0 : 1;
-        r.perPluginStats.insert(QStringLiteral("calendar"), stats);
-
-        r.endTime = QDateTime::currentDateTimeUtc();
-        if (m_device) m_device->flushWrites();    // close last mapping's DB before EndOfSync
-        if (m_device) m_device->resumeTickle();
-        Q_EMIT runFinished(r);
-        Q_EMIT syncCompleted();
-
-        promise->addResult(r);
-        promise->finish();
-        if (m_activeSyncWatcher == watcher)
-            m_activeSyncWatcher = nullptr;
-        watcher->deleteLater();
-    });
-    watcher->setFuture(engineFuture);
-
-    return resultFuture;
 }
 
 QFuture<PalmRunResult> PalmRuntime::copyPalmToPC()
@@ -1264,82 +1191,19 @@ QFuture<PalmRunResult> PalmRuntime::clobberSync(const QList<QString> &mappingIds
         return makeReadyFuture(r);
     }
 
-    Kalburator::Sync::SyncRequest req;
-    req.mappingIds = mappingIds;
-    req.behavior   = Kalburator::Sync::SyncEngine::SyncBehavior::Unmonitored;
-
-    Kalburator::Sync::ExecutionOverride ov;
-    ov.clobber = true;
-    req.executionOverride = ov;
-
-    auto engineFuture = m_engine->runSync(req);
-
-    // Same cancellation-watcher pattern as runAllMappings.
-    if (m_activeSyncWatcher) {
-        m_activeSyncWatcher->cancel();
-        m_activeSyncWatcher->deleteLater();
+    if (m_collectionRuntimeTopologyReady) {
+        Kalburator::Runtime::RunRequest request;
+        request.selection = Kalburator::Runtime::RunSelection::exactSet(mappingIds);
+        request.intent = Kalburator::Runtime::RunIntent::DestructiveRebuild;
+        return runCollectionRuntime(request);
     }
-    m_activeSyncWatcher = new QFutureWatcher<void>(this);
-    QObject::connect(m_activeSyncWatcher,
-                     &QFutureWatcher<void>::finished, this, [this]() {
-        if (m_activeSyncWatcher) {
-            m_activeSyncWatcher->deleteLater();
-            m_activeSyncWatcher = nullptr;
-        }
-    });
-    m_activeSyncWatcher->setFuture(engineFuture);
 
-    return engineFuture.then(
-        [this, ids = mappingIds](QList<Kalburator::Sync::SyncResult> results) {
-            PalmRunResult r;
-            r.startTime = QDateTime::currentDateTimeUtc();
-            r.success = std::all_of(results.begin(), results.end(),
-                [](const auto &sr){ return sr.success; });
-            r.cancelled = std::any_of(results.begin(), results.end(),
-                [](const auto &sr){ return sr.cancelled; });   // F13
-            if (!r.success) {
-                for (const auto &sr : results) {
-                    if (!sr.success) {
-                        r.errorMessage = sr.errorMessage;
-                        break;
-                    }
-                }
-            }
-            // Multi-domain reporting: aggregate per target backend.
-            // SyncResult does not carry the target backend id directly,
-            // so look it up from the request's mappings (results align
-            // by index with the dispatched ids).
-            for (int i = 0; i < results.size(); ++i) {
-                const auto &sr = results[i];
-                PalmRunResult::PluginStats stats;
-                stats.created   = sr.targetStats.created;
-                stats.updated   = sr.targetStats.updated;
-                stats.deleted   = sr.targetStats.deleted;
-                stats.unchanged = sr.targetStats.unchanged;
-                stats.errors    = sr.success ? 0 : 1;
-                QString key;
-                if (i < ids.size()) {
-                    const QString &mid = ids[i];
-                    for (const auto &m : m_mappings) {
-                        if (m.id == mid) {
-                            key = m.targetBackend;
-                            break;
-                        }
-                    }
-                }
-                if (key.isEmpty())
-                    key = QStringLiteral("clobber");
-                r.perPluginStats.insert(key, stats);
-            }
-            r.endTime = QDateTime::currentDateTimeUtc();
-            QMetaObject::invokeMethod(this, [this, r]() {
-                if (m_device) m_device->flushWrites();
-                if (m_device) m_device->resumeTickle();
-                Q_EMIT runFinished(r);
-                Q_EMIT syncCompleted();
-            });
-            return r;
-        });
+    const auto notReady = makeRejectedResult(QStringLiteral(
+        "Sync topology is not committed"));
+    Q_EMIT runFinished(notReady);
+    Q_EMIT syncCompleted();
+    return makeReadyFuture(notReady);
+
 }
 
 QFuture<PalmRunResult> PalmRuntime::backup()
@@ -1451,13 +1315,39 @@ QFuture<PalmRunResult> PalmRuntime::restore()
     });
 }
 
-// Shakedown F10: bridge UI conflict decisions into the engine's
-// SyncConflictStore. Lives here (not in KF6MainWindow) because WildPalmsCore
-// cannot include the engine-side synctypes.h (WP-local file collision).
+// Compatibility bridge for the legacy conflict-store test seam. Connected
+// production resolutions go through CollectionRuntime above.
 int PalmRuntime::applyConflictResolutions(
     const QList<Kalburator::Conflict::ConflictRecord> &resolved)
 {
-    if (!m_engineConflictStore)
+    if (m_collectionRuntime && m_collectionRuntimeTopologyReady) {
+        int applied = 0;
+        for (const auto &rec : resolved) {
+            Kalburator::Sync::ConflictResolution resolution;
+            switch (rec.decision) {
+            case Kalburator::Conflict::ConflictDecision::UseSource:
+                resolution = Kalburator::Sync::ConflictResolution::SourceWins; break;
+            case Kalburator::Conflict::ConflictDecision::UseTarget:
+                resolution = Kalburator::Sync::ConflictResolution::TargetWins; break;
+            case Kalburator::Conflict::ConflictDecision::UseBoth:
+                resolution = Kalburator::Sync::ConflictResolution::Duplicate; break;
+            case Kalburator::Conflict::ConflictDecision::Merge:
+                resolution = Kalburator::Sync::ConflictResolution::CustomMerge; break;
+            case Kalburator::Conflict::ConflictDecision::Skip:
+                resolution = Kalburator::Sync::ConflictResolution::Skip; break;
+            default:
+                continue;
+            }
+            if (m_collectionRuntime->resolveConflict(
+                    rec.conflictId, resolution, QString::fromUtf8(rec.mergedContent)))
+                ++applied;
+            else
+                qWarning() << "[PalmRuntime] runtime conflict resolution failed:"
+                           << rec.conflictId;
+        }
+        return applied;
+    }
+    if (!m_compatConflictStore)
         return 0;
     int applied = 0;
     for (const auto &rec : resolved) {
@@ -1480,24 +1370,10 @@ int PalmRuntime::applyConflictResolutions(
         default:
             continue;   // DeleteBoth has no persisted counterpart yet
         }
-        m_engineConflictStore->resolveConflict(rec.conflictId, res);
+        m_compatConflictStore->resolveConflict(rec.conflictId, res);
         ++applied;
     }
     return applied;
-}
-
-bool shouldContinueSync(const QList<Kalburator::Sync::SyncResult> &results,
-                        int passJustFinished, int maxPasses)
-{
-    if (passJustFinished >= maxPasses) return false;        // cap reached
-    bool anyChange = false;
-    for (const auto &sr : results) {
-        if (sr.cancelled) return false;                     // cancelled -> stop
-        if (!sr.success && !sr.skipped) return false;       // failure -> stop
-        if (sr.sourceStats.hasChanges() || sr.targetStats.hasChanges())
-            anyChange = true;
-    }
-    return anyChange;                                       // loop only if data moved
 }
 
 }  // namespace WildPalms::Runtime

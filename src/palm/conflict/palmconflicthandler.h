@@ -1,7 +1,7 @@
 #ifndef WILDPALMS_CONFLICT_PALMCONFLICTHANDLER_H
 #define WILDPALMS_CONFLICT_PALMCONFLICTHANDLER_H
 
-#include "conflictpolicy.h"
+#include <kalburator/conflict/conflictpolicy.h>
 
 #include "palmbackendconfig.h"
 #include "palmrecord.h"

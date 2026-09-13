@@ -1,8 +1,8 @@
 #ifndef WILDPALMS_RUNTIME_LOCALFOLDERCONFIGWIDGET_H
 #define WILDPALMS_RUNTIME_LOCALFOLDERCONFIGWIDGET_H
 
-#include <iproviderconfigwidget.h>
-#include <backendconfiguration.h>
+#include <kalburator/sync/iproviderconfigwidget.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 #include <QWidget>
 

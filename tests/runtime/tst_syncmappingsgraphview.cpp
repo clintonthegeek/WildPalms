@@ -7,7 +7,7 @@
 #include "../../src/app/mapping/syncmappingsgraphview.h"
 #include "../wildpalms_qtest_main.h"
 
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 using WildPalms::AppMapping::SyncMappingGraphView;
 using Kalburator::Sync::CollectionInfo;

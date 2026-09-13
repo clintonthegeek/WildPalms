@@ -37,10 +37,10 @@
 #include "../app/wizard/wizardstate.h"
 #include "../runtime/standardcontributions.h"
 
-#include <backendregistry.h>
-#include <backendconfiguration.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
-#include "conflictstore.h"
+#include <kalburator/conflict/conflictstore.h>
 
 #include <QJsonArray>
 #include <QJsonObject>

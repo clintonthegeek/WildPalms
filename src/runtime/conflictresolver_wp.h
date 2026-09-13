@@ -1,8 +1,8 @@
 #ifndef WILDPALMS_RUNTIME_CONFLICTRESOLVER_WP_H
 #define WILDPALMS_RUNTIME_CONFLICTRESOLVER_WP_H
 
-#include <iconflictresolver.h>
-#include <synctypes.h>
+#include <kalburator/calendar/iconflictresolver.h>
+#include <kalburator/types/synctypes.h>
 
 namespace WildPalms::Runtime {
 

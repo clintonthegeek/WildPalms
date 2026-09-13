@@ -19,11 +19,11 @@
 #include <memory>
 #include <optional>
 
-#include "syncbackend.h"
-#include "iblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "shape.h"
+#include <kalburator/calendar/syncbackend.h>
+#include <kalburator/blob/iblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/shape/shape.h>
 
 namespace WildPalmsTest {
 

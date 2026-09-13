@@ -7,8 +7,8 @@
 #include "runtime/palmruntime.h"
 #include "runtime/routemapping.h"
 #include "plugins/pimplugin.h"
-#include <synctypes.h>
-#include <syncbackendbase.h>   // complete type: createPalmBackend returns unique_ptr<SyncBackendBase>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/sync/syncbackendbase.h>   // complete type: createPalmBackend returns unique_ptr<SyncBackendBase>
 
 using namespace WildPalms::Runtime;
 

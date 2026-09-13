@@ -17,7 +17,7 @@
 #include "conflictdialog.h"
 
 // Kalburator types used in this header (ConflictStore)
-#include "conflictstore.h"
+#include <kalburator/conflict/conflictstore.h>
 
 class QListWidget;
 class QListWidgetItem;

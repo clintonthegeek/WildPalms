@@ -3,10 +3,10 @@
 
 #include "plugins/calendar/hubcalendarreader.h"
 
-#include <genericsqlitebackend.h>
-#include <backendrecord.h>
-#include <collectioninfo.h>
-#include <shape.h>
+#include <kalburator/universal/genericsqlitebackend.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/shape/shape.h>
 
 using WildPalms::CalendarPlugin::HubCalendarReader;
 using Kalburator::Sinks::GenericSqliteBackend;

@@ -6,9 +6,9 @@
 #include <QString>
 #include <QVariantMap>
 
-#include <isyncconfigstore.h>
-#include <logicalcalendar.h>
-#include <synctypes.h>
+#include <kalburator/types/isyncconfigstore.h>
+#include <kalburator/types/logicalcalendar.h>
+#include <kalburator/types/synctypes.h>
 
 class QSettings;
 

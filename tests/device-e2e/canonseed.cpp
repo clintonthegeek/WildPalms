@@ -3,7 +3,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
-#include <canonenvelope.h>
+#include <kalburator/shape/canonenvelope.h>
 
 namespace WildPalms {
 namespace DeviceE2E {

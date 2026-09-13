@@ -10,7 +10,7 @@
 #include <QString>
 #include <QStringList>
 
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 #include "palmdbnode.h"
 #include "providernode.h"

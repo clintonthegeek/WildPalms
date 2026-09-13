@@ -1,9 +1,9 @@
 #include "addaccountdialog.h"
 #include "accountformwidget.h"
 
-#include <backendregistry.h>
-#include <backendcontribution.h>
-#include <backendconfiguration.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/backendcontribution.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 #include <QDialogButtonBox>
 #include <QPushButton>

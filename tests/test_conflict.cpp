@@ -9,9 +9,9 @@
 #include <QDebug>
 #include <QSignalSpy>
 #include <QJsonDocument>
-#include "conflictrecord.h"
-#include "conflictstore.h"
-#include "conflictpolicy.h"
+#include <kalburator/conflict/conflictrecord.h>
+#include <kalburator/conflict/conflictstore.h>
+#include <kalburator/conflict/conflictpolicy.h>
 
 using namespace Kalburator::Conflict;
 

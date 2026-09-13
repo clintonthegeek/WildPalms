@@ -1,9 +1,9 @@
 #include "standardcontributions.h"
 
-#include <backendregistry.h>
-#include <multiprotocoldavbackendcontribution.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/multiprotocoldavbackendcontribution.h>
 #ifdef HAVE_AKONADI
-#include <akonadibackendcontribution.h>
+#include <kalburator/sync/akonadibackendcontribution.h>
 #endif
 
 #include "localfoldercontribution.h"

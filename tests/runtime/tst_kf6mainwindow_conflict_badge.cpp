@@ -5,8 +5,8 @@
 #include "../../src/kf6/kf6mainwindow.h"
 #include "../wildpalms_qtest_main.h"
 
-#include <synctypes.h>
-#include <conflictstore.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/conflict/conflictstore.h>
 
 class TstKf6MainWindowConflictBadge : public QObject
 {

@@ -7,13 +7,13 @@
 #include "palm/calendar/categorymappingstore.h"
 
 // libkalburator shape graph + calendar canon (via Kalburator::Sync)
-#include "shaperegistries.h"
-#include "transformationregistry.h"
-#include "shape.h"
-#include "pipeline.h"
-#include "lossprofile.h"
-#include "calendardomaindefinition.h"
-#include "calendarstockshapes.h"
+#include <kalburator/shape/shaperegistries.h>
+#include <kalburator/shape/transformationregistry.h>
+#include <kalburator/shape/shape.h>
+#include <kalburator/shape/pipeline.h>
+#include <kalburator/shape/lossprofile.h>
+#include <kalburator/calendar/calendardomaindefinition.h>
+#include <kalburator/calendar/calendarstockshapes.h>
 
 #include <KCalendarCore/Event>
 #include <KCalendarCore/ICalFormat>

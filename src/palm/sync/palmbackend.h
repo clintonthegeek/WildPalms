@@ -8,7 +8,7 @@
 #include <QList>
 #include <QObject>
 
-#include "iblobbackend.h"
+#include <kalburator/blob/iblobbackend.h>
 #include "palmrecord.h"
 
 namespace WildPalms::PalmSync {
@@ -65,6 +65,13 @@ public:
     QStringList deletedSince(const QString &collectionId,
                              const QDateTime &since) override;
     bool supportsDeleteTracking() const override;
+
+    // Palm records are committed individually by the device protocol; the
+    // generic batch capability is intentionally unsupported.
+    void beginBatch() override {}
+    bool commitBatch() override { return false; }
+    void rollbackBatch() override {}
+    bool supportsBatch() const override { return false; }
 
     // --- ID encoding (exposed for tests and for callers that need to
     //     round-trip between PalmRecord and BackendRecord IDs).   ---

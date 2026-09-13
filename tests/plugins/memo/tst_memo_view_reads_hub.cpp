@@ -15,10 +15,10 @@
 #include "plugins/memo/memoview.h"
 #include "plugins/memo/hubmemoreader.h"
 
-#include <genericsqlitebackend.h>
-#include <backendrecord.h>
-#include <collectioninfo.h>
-#include <shape.h>
+#include <kalburator/universal/genericsqlitebackend.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/shape/shape.h>
 
 using Kalburator::Sinks::GenericSqliteBackend;
 using Kalburator::Sync::BackendRecord;

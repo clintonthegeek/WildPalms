@@ -12,8 +12,8 @@
 #include "runtime/palmruntime.h"
 #include "profile.h"
 
-#include <accountslistwidget.h>
-#include <backendconfiguration.h>
+#include <kalburator/ui/accountslistwidget.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 class TstAccountsPage : public QObject {
     Q_OBJECT

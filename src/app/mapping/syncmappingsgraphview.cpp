@@ -20,7 +20,7 @@
 #include <cmath>
 #include <utility>
 
-#include <synctypes.h>   // syncMappingToJson, syncMappingFromJson
+#include <kalburator/types/synctypes.h>   // syncMappingToJson, syncMappingFromJson
 
 namespace WildPalms::AppMapping {
 

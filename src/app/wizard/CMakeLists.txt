@@ -1,7 +1,7 @@
 # WildPalmsAppWizard — F.1c.1 NewProfileWizard
 #
 # Lives in a separate static lib (matching WildPalmsAppAccounts etc.) so
-# WildPalmsCore's src/core/synctypes.h doesn't shadow libkalburator's.
+# Resolve shared sync types from libkalburator's public target include path.
 
 add_library(WildPalmsAppWizard STATIC
     wizardstate.h

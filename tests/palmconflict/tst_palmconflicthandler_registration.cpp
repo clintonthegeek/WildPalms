@@ -1,7 +1,7 @@
 #include <QtTest/QtTest>
 
-#include "conflicthandlerregistry.h"
-#include "conflictpolicy.h"
+#include <kalburator/conflict/conflicthandlerregistry.h>
+#include <kalburator/conflict/conflictpolicy.h>
 
 #include "mockpalmdatabaseaccess.h"
 #include "palmbackendconfig.h"

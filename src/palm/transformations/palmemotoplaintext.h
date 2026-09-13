@@ -1,6 +1,6 @@
 #pragma once
 
-#include "transformationedge.h"
+#include <kalburator/shape/transformationedge.h>
 
 namespace WildPalms::Palm::Transformations {
 

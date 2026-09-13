@@ -15,11 +15,11 @@
 #include <QThread>
 #include "runtime/palmruntime.h"
 #include "runtime/palmrunresult.h"
-#include "mockblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "synctypes.h"
-#include "syncconflictstore.h"
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/calendar/syncconflictstore.h>
 #include "../blobsyncbackendwrapper.h"
 
 using namespace WildPalms::Runtime;

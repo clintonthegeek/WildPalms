@@ -4,7 +4,7 @@
 #include <QThread>
 #include <QtConcurrent/QtConcurrent>
 #include "kalburatorinteractiveconflicthandler.h"
-#include "conflicthandlerregistry.h"
+#include <kalburator/conflict/conflicthandlerregistry.h>
 
 class TstKalburatorInteractiveConflictHandler : public QObject
 {

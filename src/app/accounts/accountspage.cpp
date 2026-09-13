@@ -4,9 +4,8 @@
 #include "runtime/accountcontroller.h"
 #include "runtime/palmruntime.h"
 
-#include <accountslistwidget.h>
-#include <backendconfiguration.h>
-#include <iprovider.h>
+#include <kalburator/ui/accountslistwidget.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 #include <QMessageBox>
 #include <QVBoxLayout>
@@ -76,9 +75,12 @@ void AccountsPage::buildUi() {
 
 void AccountsPage::refreshList() {
     QList<Kalburator::Sync::BackendConfiguration> configs;
-    for (auto *p : m_accounts->providers()) {
-        auto cfg = p->save();
-        cfg.enabled = m_accounts->providerEnabled(p->id());
+    for (const auto &provider : m_accounts->providerSummaries()) {
+        Kalburator::Sync::BackendConfiguration cfg;
+        cfg.id = provider.id;
+        cfg.type = provider.kind;
+        cfg.displayName = provider.displayName;
+        cfg.enabled = m_accounts->providerEnabled(provider.id);
         configs.append(cfg);
     }
     m_listWidget->setAccounts(configs);

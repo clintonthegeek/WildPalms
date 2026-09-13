@@ -9,9 +9,9 @@
 #include <QtTest/QtTest>
 #include <QComboBox>
 
-#include <backendregistry.h>
-#include <multiprotocoldavbackendcontribution.h>
-#include <backendconfiguration.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/multiprotocoldavbackendcontribution.h>
+#include <kalburator/typesupport/backendconfiguration.h>
 
 #include "../src/app/accounts/addaccountdialog.h"
 

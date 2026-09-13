@@ -6,9 +6,11 @@
 #include <QList>
 #include <QByteArray>
 #include <QVariant>
-#include "../core/synctypes.h"
+#include <kalburator/types/collectioninfo.h>
 
 namespace Sync {
+
+using CollectionInfo = Kalburator::Sync::CollectionInfo;
 
 /**
  * @brief Abstract record for backend storage

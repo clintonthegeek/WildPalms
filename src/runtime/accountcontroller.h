@@ -8,6 +8,7 @@
 #include <QFuture>
 #include <QJsonArray>
 #include <memory>
+#include <kalburator/runtime/collectionruntime.h>
 
 class Profile;
 namespace Kalburator::Sync {
@@ -45,6 +46,15 @@ public:
     };
     Q_ENUM(ConnectionState)
 
+    struct ProviderSummary {
+        QString id;
+        QString kind;
+        QString displayName;
+        QList<Kalburator::Sync::CollectionInfo> collections;
+        ConnectionState state = ConnectionState::Disconnected;
+        QString errorMessage;
+    };
+
     AccountController(const QString &syncFolderPath,
                       Kalburator::Sync::BackendRegistry *registry,
                       Profile *profile,
@@ -65,6 +75,7 @@ public:
     bool removeProvider(const QString &providerId);
 
     QList<Kalburator::Sync::IProvider*> providers() const;
+    QList<ProviderSummary> providerSummaries() const;
     QList<Kalburator::Sync::CollectionInfo>
         collectionsFor(const QString &providerId) const;
     ConnectionState stateFor(const QString &providerId) const;
@@ -111,6 +122,7 @@ private:
     Profile                                         *m_profile;         // borrowed
     PalmRuntime                                     *m_palmRuntime;     // borrowed
     std::unique_ptr<Kalburator::Sync::ProviderManager> m_providerManager;
+    bool m_runtimeProviders = false;
     QHash<QString, ConnectionState>                  m_states;
     QHash<QString, QString>                          m_lastErrors;
 };

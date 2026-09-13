@@ -3,8 +3,6 @@
 
 #include <QObject>
 #include <QFuture>
-#include <QFutureWatcher>
-#include <QPromise>
 #include <QHash>
 #include <QJsonArray>
 #include <QList>
@@ -18,32 +16,24 @@ namespace Kalburator { class PluginManager; class Plugin; }
 class Profile;
 
 #include "palmrunresult.h"
+#include <kalburator/runtime/collectionruntime.h>
 #include "routemapping.h"   // substrate A3 — RouteStatus (m_routeStatuses member)
 #include "palm/sync/palmrevisionstore.h"
-#include <shaperegistries.h>
+#include <kalburator/shape/shaperegistries.h>
+#include "palmruntimeassembly.h"
 
 class KPilotDeviceLink;
 
 namespace Kalburator::Sync {
     class BackendRegistry;
-    class ISyncHost;
     struct SyncMapping;
     struct LogicalCalendar;
     class SyncBackend;
-    struct SyncResult;
-}
-
-namespace Kalburator::Engine {
-    class SyncEngine;
 }
 
 namespace Kalburator::Conflict {
     class ConflictHandler;
     class IMassDeleteGuard;
-}
-
-namespace Kalburator::Storage {
-    class BaselineStore;
 }
 
 namespace Kalburator::Sync {
@@ -59,8 +49,8 @@ namespace Kalburator::Shape {
 
 namespace Kalburator::Sinks {
     class GenericSqliteBackend;
-    class FilteredCollectionBackend;
 }
+namespace Kalburator::Runtime { struct RunRequest; }
 
 namespace WildPalms::Plugins { class PimPlugin; }   // substrate A1 — conduit descriptor
 
@@ -72,7 +62,7 @@ namespace WildPalms::Runtime {
 
 class PalmDeviceAccess;
 
-class PalmRuntime : public QObject {
+class PalmRuntime : public QObject, private PalmRuntimeAssembly {
     Q_OBJECT
 public:
     explicit PalmRuntime(const QString &profilePath,
@@ -94,7 +84,7 @@ public:
     void cancelConnect();
 
     /// Cancel a running hotSync / fullSync / copyPalmToPC / clobberSync.
-    /// Routes QFutureWatcher::cancel() into SyncEngine::onCancelObserved.
+    /// Routes cancellation into the runtime-owned coordinator.
     /// No-op if no sync is running.
     void cancelSync();
 
@@ -103,7 +93,7 @@ public:
 
     /// Borrowed pointer to the underlying KPilotDeviceLink. Only valid after
     /// readyForSync(). Returns nullptr if not yet connected. KF6MainWindow uses
-    /// this to read handshake info and to feed the legacy m_syncEngine.
+    /// this to read handshake information for device-management views.
     KPilotDeviceLink *deviceLink() const;
 
     QFuture<PalmRunResult> hotSync();
@@ -120,6 +110,18 @@ public:
     QList<QString> enabledPluginIds() const;
     QList<Kalburator::Sync::SyncMapping> palmMappings() const;
 
+    /// Provider lifecycle owned by the public collection runtime. These are
+    /// the facade operations used by profile/account management; callers do
+    /// not need a ProviderManager or BackendRegistry.
+    QList<Kalburator::Runtime::ProviderSnapshot> providerSnapshots() const;
+    bool hasCollectionRuntime() const { return m_collectionRuntime != nullptr; }
+    QFuture<bool> connectProviders();
+    bool addProvider(const Kalburator::Sync::BackendConfiguration &config,
+                     QString &errorMessage);
+    bool updateProvider(const Kalburator::Sync::BackendConfiguration &config,
+                        QString &errorMessage);
+    bool removeProvider(const QString &providerId, QString &errorMessage);
+
     /// Returns the IDs of all enabled mappings whose target backend is the
     /// Palm-side blob backend for the given domain (e.g. "calendar",
     /// "contacts", "memo", "todo"). Used by ClobberDialog to populate
@@ -132,12 +134,8 @@ public:
 
     bool isRunning() const { return m_running; }
 
-    /// True while a sync dispatch (multi-pass fixpoint loop, mirror, or
-    /// clobber) is in flight. UI entry points use this to turn re-entrant
-    /// sync clicks into a user-visible no-op instead of a silent console
-    /// warning. Covers every path that installs m_activeSyncWatcher.
-    bool isSyncRunning() const { return m_syncPromise != nullptr
-                                       || m_activeSyncWatcher != nullptr; }
+    /// True while a runtime command is in flight.
+    bool isSyncRunning() const { return m_running; }
 
     /// Read-only view of the loaded Palm plugin instances.
     /// Valid after registerPalmPlugins() (called from the constructor).
@@ -177,24 +175,16 @@ public:
     void setConflictHandler(Kalburator::Conflict::ConflictHandler *handler);
     Kalburator::Conflict::ConflictHandler *conflictHandlerForTest() const;
 
-    /// Forward to the embedded SyncEngine. Non-owning; consumer must
-    /// outlive the runtime. nullptr clears. See libkalburator's
-    /// imassdeleteguard.h for threshold semantics.
+    /// Update CollectionRuntime's mass-delete policy. Non-owning; the guard
+    /// must outlive this runtime. nullptr restores allow-by-default behavior.
     void setMassDeleteGuard(Kalburator::Conflict::IMassDeleteGuard *guard);
 
-    /// Borrowed pointer to the embedded engine's SyncConflictStore.
-    /// Used by the conflict UI to read deferred conflicts. Non-null
-    /// since F10 (a per-profile store is attached at construction).
+    /// Compatibility accessor for the former conflict-store test seam.
+    /// Connected production conflict state is owned by CollectionRuntime.
     Kalburator::Sync::SyncConflictStore *syncConflictStore() const;
 
-    /// Shakedown F10 bridge: apply UI-side resolved-but-unapplied
-    /// decisions (from ConflictReviewWidget's ConflictStore) into the
-    /// embedded engine's SyncConflictStore so that
-    /// SyncEngine::rehydratePendingResolutions() replays them on the
-    /// next sync. Lives here because WildPalmsCore cannot include the
-    /// engine-side synctypes.h (WP-local file collision). Returns the
-    /// number of records applied; records with decisions that have no
-    /// persisted engine counterpart (currently DeleteBoth) are skipped.
+    /// Apply UI-side resolved decisions to CollectionRuntime. This remains
+    /// here because WildPalmsCore cannot include the engine-side synctypes.h.
     int applyConflictResolutions(
         const QList<Kalburator::Conflict::ConflictRecord> &resolved);
 
@@ -233,7 +223,7 @@ public:
     /// loaded plugins. Used to seed the dashboard conduit row before a sync.
     QVector<ConduitDescriptor> conduitDescriptors() const;
 
-    /// Per-mapping route status from the last buildRouteLogicalCalendars
+    /// Per-mapping route status from the last route-spec translation
     /// (substrate A3 — replaces the old silent drop of unresolved routes).
     /// Keyed by SyncMapping::id; only well-formed routes are present.
     QHash<QString, WildPalms::Runtime::RouteStatus> routeStatuses() const
@@ -266,10 +256,9 @@ signals:
     void progressUpdated(int current, int total, QString message);
     void palmScreenMessage(QString message);
 
-    /// Forwarded from the embedded SyncEngine. Fires every time a
+    /// Forwarded from CollectionRuntime. Fires every time a
     /// mapping with policy=AskUser encounters a conflict that the
-    /// engine cannot auto-resolve. The conflict is also persisted
-    /// to SyncConflictStore (engine-side); this signal exists so
+    /// engine cannot auto-resolve. This signal exists so
     /// the WildPalms UI can update a pending-count display in real
     /// time without polling.
     void conflictDetected(const Kalburator::Sync::ConflictInfo &info);
@@ -286,13 +275,12 @@ private:
     /// Loads plugins, registers backends, sets up default mappings if
     /// none exist, sets up the engine. Emits deviceConnected + readyForSync.
     void finishConnect();
+    bool initializeCollectionRuntime(QString &errorMessage);
+    bool applyCollectionRuntimeTopology(QString &errorMessage);
     void ensureHubCollections();
-
-    /// Append one LogicalCalendar per category-route (translated from the
-    /// persisted user mappings) to `lcs`. Owned FilteredCollectionBackend
-    /// instances land in m_routeViews and are registered with m_registry
-    /// under the id "wp-route-<lcId>". No-op when m_mappings is empty.
-    void buildRouteLogicalCalendars(QList<Kalburator::Sync::LogicalCalendar> &lcs);
+    /// Translate persisted category-route rows into runtime route specs and
+    /// statuses. Physical route backends are materialized by CollectionRuntime.
+    void buildRouteLogicalCalendars();
 
     /// Repopulate m_mappings from the borrowed Profile's persisted
     /// syncMappingsJson(). The Profile is the source of truth for
@@ -305,97 +293,37 @@ private:
     // Mirror direction — local enum avoids pulling synctypes.h into this header.
     enum class MirrorDir { PalmToPC, PCToPalm };
 
-    QFuture<PalmRunResult> runAllMappings(int maxPasses, bool skipUnchanged);
+    QFuture<PalmRunResult> runCollectionRuntime(
+        const Kalburator::Runtime::RunRequest &request);
     QFuture<PalmRunResult> runMirror(MirrorDir dir, const QString &modeLabel);
-
-    /// Task 12: run ONE engine pass of the enabled mapping set, then fold its
-    /// results into m_syncAccum and either re-dispatch (next hop) or finalize.
-    /// Drives the multi-hop fixpoint loop set up by runAllMappings().
-    void dispatchSyncPass_();
 
     /// Resolve a mapping's display label + theme icon name from m_palmPlugins
     /// (matches plugin->pluginId() against mapping.sourceBackend).
     void resolveMappingIdentity(const QString &mappingId,
                                 QString &outLabel, QString &outIconName) const;
-    // P2: track whether Palm device is source or target in the current mapping.
-    // Set in the syncStarted lambda; used by the phaseChanged lambda in the
-    // constructor to decide whether to pause or resume the keep-alive tickle.
-    bool m_currentPalmIsSource = false;
-    bool m_currentPalmIsTarget = false;
-
-    QString m_activeMappingId;   // mapping currently emitting fetch/write progress
+    bool m_collectionRuntimeTopologyReady = false;
 
     Kalburator::Conflict::ConflictHandler                *m_conflictHandler = nullptr;
     Profile                                              *m_profile = nullptr;   // borrowed; see setProfile
-    QString                                                      m_profilePath;
-    QString                                                      m_backupRoot;
-    // K.8b T16: watcher tracking the in-flight engine future so cancelSync()
-    // can call cancel() into SyncEngine::onCancelObserved.
-    // QFutureWatcher<void> accepts any QFuture<T> via setFuture().
-    QFutureWatcher<void>                                        *m_activeSyncWatcher = nullptr;
-    // Task 12: multi-hop fixpoint loop state (one in-flight run at a time).
-    // runAllMappings() seeds these and kicks the first pass; dispatchSyncPass_()
-    // re-dispatches until shouldContinueSync() says stop, accumulating into
-    // m_syncAccum and finalizing the caller's promise once at the end.
-    int     m_syncPass     = 0;     // 1-based current pass
-    int     m_syncMaxPass  = 1;     // 3 for HotSync, 2 for FullSync
-    QList<QString>                              m_syncIds;     // enabled mapping ids
-    std::shared_ptr<QPromise<PalmRunResult>>    m_syncPromise; // caller's promise
-    PalmRunResult                               m_syncAccum;   // accumulated across passes
-    std::unique_ptr<PalmDeviceAccess>                            m_device;
-    std::unique_ptr<Kalburator::Sync::BackendRegistry>           m_registry;
-    // C: canonical local hub. Declared right after m_registry (and before
-    // m_engine) so it is destroyed AFTER the engine — the engine's registry
-    // holds a borrowed "wp-hub" pointer, so the hub must outlive the engine.
-    std::unique_ptr<Kalburator::Sinks::GenericSqliteBackend>     m_hub;
-    // Hub<->remote routing: one FilteredCollectionBackend per category-route.
-    // Declared right after m_hub (which it borrows) and BEFORE m_engine so the
-    // engine's registered borrowed pointers are still valid at destruction.
-    std::vector<std::unique_ptr<Kalburator::Sinks::FilteredCollectionBackend>>
-        m_routeViews;
-    // O7: per-PalmRuntime shape registries, injected into m_pluginManager
-    // (which populates them) and m_engine (which reads them). Declared before
-    // both so it is constructed first and destroyed last.
-    Kalburator::Shape::ShapeRegistries                           m_shape;
-    // Shakedown F10: per-profile engine-side conflict store (SQLite,
-    // .state/sync-conflicts.db). The engine borrows this pointer: deferred
-    // Unmonitored AskUser conflicts persist here and rehydrate at every
-    // runSync entry so UI-applied resolutions replay on the next sync.
-    // Declared BEFORE m_engine (which borrows it) so it outlives the engine.
-    std::unique_ptr<Kalburator::Sync::SyncConflictStore>         m_engineConflictStore;
-    std::unique_ptr<Kalburator::Sync::ISyncHost>                 m_syncHost;
-    std::unique_ptr<Kalburator::Engine::SyncEngine>              m_engine;
-    std::unique_ptr<Kalburator::Storage::BaselineStore>          m_baselineStore;
-    // K.8b T6: PluginManager + owned plugin instances for the five static
-    // Palm plugins. m_pluginManager MUST be declared before m_palmPlugins
-    // (C++ destructs in reverse declaration order — plugins destruct before
-    // manager, which is the correct teardown sequence).
-    std::unique_ptr<Kalburator::PluginManager>                   m_pluginManager;
-    std::vector<std::unique_ptr<Kalburator::Plugin>>             m_palmPlugins;
-    QList<Kalburator::Sync::SyncMapping>                         m_mappings;
-    bool                                                         m_running = false;
+    // The watcher is the sole active-run/cancellation handle; it accepts any
+    // QFuture<T> via setFuture().
+    // C: canonical local hub. The compatibility engine's registry holds a
+    // borrowed "wp-hub" pointer, so the hub must outlive that engine.
+    // CollectionRuntime materializes filtered route endpoints from m_routeSpecs.
+    // O7: per-PalmRuntime shape registries used by plugin loading and the
+    // compatibility engine.
+    // Compatibility-only conflict-store accessor state.
+    // K.8b T6: owned plugin instances for the five static Palm plugins. The
+    // setup-time PluginManager is a local in registerPalmPlugins().
     // T7: per-profile cached-revision store. Must be declared BEFORE
     // m_ownedBackends so it is destroyed AFTER them (reverse declaration
     // order) — the backends hold a borrowed pointer to this store.
-    std::unique_ptr<WildPalms::PalmSync::PalmRevisionStore>      m_palmRevisionStore;
-    std::vector<std::unique_ptr<Kalburator::Sync::SyncBackendBase>>  m_ownedBackends;
     /// Substrate A3: per-mapping route status from the last
     /// buildRouteLogicalCalendars(). Keyed by SyncMapping::id.
-    QHash<QString, WildPalms::Runtime::RouteStatus>             m_routeStatuses;
     /// Substrate A3: desired category names the connect-time reconciler could
     /// not place (device table full), keyed by primary db name. Diagnostics +
     /// future UI; translateRouteSpec already reports these rows as NoFreeSlot.
-    QHash<QString, QStringList>                                 m_categoryNoFreeSlot;
 };
-
-/// Decide whether the multi-hop loop should run another pass.
-/// `results` are the SyncResults of the pass that just finished.
-/// Continues only if some mapping changed data (so a hop may still be
-/// pending), the run is healthy, and we are under the cap.
-///   passJustFinished : 1-based index of the pass that just completed
-///   maxPasses        : hard cap (3 for HotSync)
-bool shouldContinueSync(const QList<Kalburator::Sync::SyncResult> &results,
-                        int passJustFinished, int maxPasses);
 
 }  // namespace WildPalms::Runtime
 

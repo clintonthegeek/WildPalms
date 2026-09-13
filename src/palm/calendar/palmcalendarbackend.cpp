@@ -1,7 +1,7 @@
 #include "palmcalendarbackend.h"
 
 #include <QRegularExpression>
-#include "syncoperation.h"
+#include <kalburator/calendar/syncoperation.h>
 
 #include "categorymappingstore.h"
 #include "ipalmdatabaseaccess.h"

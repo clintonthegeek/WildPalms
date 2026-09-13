@@ -10,7 +10,7 @@
 #include "runtime/profileregistry.h"
 
 #include <KSharedConfig>
-#include <backendregistry.h>
+#include <kalburator/sync/backendregistry.h>
 
 using WildPalms::Wizard::NewProfileWizard;
 using WildPalms::Wizard::TargetKind;

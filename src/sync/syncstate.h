@@ -6,12 +6,26 @@
 #include <QDateTime>
 #include <QMap>
 #include <QJsonObject>
-#include "../core/synctypes.h"
+#include <QDateTime>
+#include <QStringList>
 #include "journal/idmappingstore.h"
 #include "journal/baselinestore.h"
-#include "conflictstore.h"   // Kalburator::Conflict::ConflictStore (libkalburator)
+#include <kalburator/conflict/conflictstore.h>   // Kalburator::Conflict::ConflictStore (libkalburator)
 
 namespace Sync {
+
+// Legacy JSON-state facade shape.  The active runtime uses
+// WildPalms::Sync::IDMapping directly; this small value type remains only
+// for SyncState's older Palm/PC naming API.
+struct IDMapping
+{
+    QString palmId;
+    QString pcId;
+    QString palmCategory;
+    QStringList pcCategories;
+    QDateTime lastSynced;
+    bool archived = false;
+};
 
 /**
  * @brief Manages sync state including ID mappings and baseline tracking

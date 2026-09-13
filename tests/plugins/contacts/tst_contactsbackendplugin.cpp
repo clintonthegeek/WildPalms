@@ -8,7 +8,7 @@
 #include "plugins/contacts/palmcontactsbackend.h"
 #include "plugins/contacts/contactsconflicthandler.h"
 
-#include <shapecontribution.h>  // O7: complete type for shapeContributions() peerShapes()
+#include <kalburator/shape/shapecontribution.h>  // O7: complete type for shapeContributions() peerShapes()
 
 #include "palm/calendar/categorymappingstore.h"
 #include "palm/sync/mockpalmdatabaseaccess.h"
@@ -18,18 +18,18 @@
 
 // Complete-type includes for libkalburator pointers (delete on a forward
 // decl is UB; ConflictHandler is needed for dynamic_cast).
-#include "iblobbackend.h"
-#include "conflictpolicy.h"
-#include "conflictrecord.h"
+#include <kalburator/blob/iblobbackend.h>
+#include <kalburator/conflict/conflictpolicy.h>
+#include <kalburator/conflict/conflictrecord.h>
 
 // K.7: registry assertions for constructor-time domain extension
 // registration. ContactsDomainPlugin removed; use registerStockPlugins.
-#include "domainregistry.h"
-#include "domainoperationsregistry.h"
-#include "transformationregistry.h"
-#include "backendregistry.h"
-#include "pluginmanager.h"
-#include "stock_plugins.h"
+#include <kalburator/shape/domainregistry.h>
+#include <kalburator/shape/domainoperationsregistry.h>
+#include <kalburator/shape/transformationregistry.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/plugin/pluginmanager.h>
+#include <kalburator/plugin/stock_plugins.h>
 
 using WildPalms::ContactsPlugin::ContactsBackendPlugin;
 using WildPalms::ContactsPlugin::PalmContactsBackend;

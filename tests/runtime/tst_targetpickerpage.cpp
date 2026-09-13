@@ -12,7 +12,7 @@
 #include "runtime/conduitcatalog.h"
 #include "plugins/pimplugin.h"   // complete type: vector<unique_ptr<PimPlugin>> destructor
 
-#include <collectioninfo.h>
+#include <kalburator/types/collectioninfo.h>
 
 using WildPalms::Wizard::TargetPickerPage;
 using WildPalms::Wizard::TargetPickerRow;

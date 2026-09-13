@@ -18,7 +18,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Find Qt6
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Network Concurrent)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Widgets Network Concurrent Sql)
 qt_standard_project_setup()
 
 # KDE Extra CMake Modules — provides KDE_INSTALL_PLUGINDIR etc.
@@ -38,6 +38,7 @@ find_package(KF6XmlGui REQUIRED)
 find_package(KF6WidgetsAddons REQUIRED)
 find_package(KF6Config REQUIRED)
 find_package(KF6ConfigWidgets REQUIRED)
+find_package(KF6Wallet REQUIRED)
 find_package(KF6Crash REQUIRED)
 find_package(KF6Notifications REQUIRED)
 find_package(KF6StatusNotifierItem REQUIRED)
@@ -60,25 +61,23 @@ option(KALBURATOR_HAVE_AKONADI "Build with KPim6 Akonadi support" ON)
 
 set(WILDPALMS_LIBKALBURATOR_SOURCE_DIR "" CACHE PATH
     "Optional path to a local libkalburator checkout (override FetchContent)")
-# Tag pin v1.01 (2026-08-22, commit b847ab8 on main): superset of v0.77 PLUS
-# O55 record-id aliasing + O56 anchor-stable aliasing and unresolved-conflict
-# all-or-nothing write hold — fixes the hub churn regressions documented in
-# docs/2026-08-21-libkalburator-hub-record-id-join-churn-handoff.md (CLOSED;
-# lib response: docs/2026-08-22-o55-hub-record-id-aliasing-response.md) and
-# its follow-up docs/2026-08-22-libkalburator-o55-followup-recategorization-
-# handoff.md (lib response: docs/2026-08-22-o56-recategorization-followup-
-# response.md).
-set(WILDPALMS_LIBKALBURATOR_GIT_TAG "v1.01" CACHE STRING
+# Tag pin v1.06 (2026-09-10): consumes libkalburator's CollectionRuntime
+# facade (WP-009 cutover — see docs/CONSUMING.md in libkalburator and the
+# WP-side response doc docs/2026-09-03-libkalburator-consuming-contract-
+# response-wildpalms.md). All libkalburator public headers now live under
+# the namespaced kalburator/<domain>/<header>.h include convention introduced
+# at this tag; see docs/LIBKALBURATOR.md.
+set(WILDPALMS_LIBKALBURATOR_GIT_TAG "v1.06" CACHE STRING
     "libkalburator tag to fetch when WILDPALMS_LIBKALBURATOR_SOURCE_DIR is unset")
 
 if(WILDPALMS_LIBKALBURATOR_SOURCE_DIR)
     message(STATUS "libkalburator: using local source at ${WILDPALMS_LIBKALBURATOR_SOURCE_DIR}")
     add_subdirectory(${WILDPALMS_LIBKALBURATOR_SOURCE_DIR} libkalburator EXCLUDE_FROM_ALL)
 else()
-    message(STATUS "libkalburator: fetching ${WILDPALMS_LIBKALBURATOR_GIT_TAG} from Codeberg")
+    message(STATUS "libkalburator: fetching ${WILDPALMS_LIBKALBURATOR_GIT_TAG} from GitHub")
     include(FetchContent)
     FetchContent_Declare(libkalburator
-        GIT_REPOSITORY https://codeberg.org/clintonthegeek/libkalburator.git
+        GIT_REPOSITORY https://github.com/clintonthegeek/libkalburator.git
         GIT_TAG        ${WILDPALMS_LIBKALBURATOR_GIT_TAG}
         GIT_SHALLOW    TRUE
     )
@@ -110,10 +109,10 @@ if(WILDPALMS_GRAFFODIL_SOURCE_DIR)
     message(STATUS "Graffodil: using local source at ${WILDPALMS_GRAFFODIL_SOURCE_DIR}")
     add_subdirectory(${WILDPALMS_GRAFFODIL_SOURCE_DIR} graffodil EXCLUDE_FROM_ALL)
 else()
-    message(STATUS "Graffodil: fetching ${WILDPALMS_GRAFFODIL_GIT_TAG} from Codeberg")
+    message(STATUS "Graffodil: fetching ${WILDPALMS_GRAFFODIL_GIT_TAG} from GitHub")
     include(FetchContent)
     FetchContent_Declare(graffodil
-        GIT_REPOSITORY https://codeberg.org/clintonthegeek/Graffodil.git
+        GIT_REPOSITORY https://github.com/clintonthegeek/Graffodil.git
         GIT_TAG        ${WILDPALMS_GRAFFODIL_GIT_TAG}
         GIT_SHALLOW    TRUE
     )

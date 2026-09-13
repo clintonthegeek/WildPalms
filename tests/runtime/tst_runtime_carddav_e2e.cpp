@@ -13,19 +13,19 @@
 
 #include "runtime/palmruntime.h"
 #include "runtime/palmrunresult.h"
-#include "mockblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "synctypes.h"
-#include "shape.h"
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/shape/shape.h>
 
-#include "carddavprovider.h"
-#include "backendconfiguration.h"
-#include "backendregistry.h"
-#include "syncbackend.h"
-#include "syncbackendbase.h"
-#include "pluginmanager.h"
-#include "stock_plugins.h"
+#include <kalburator/sync/carddavprovider.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/calendar/syncbackend.h>
+#include <kalburator/sync/syncbackendbase.h>
+#include <kalburator/plugin/pluginmanager.h>
+#include <kalburator/plugin/stock_plugins.h>
 // K.8b T7: BlobBackendAdapter deleted; inject via BlobSyncBackendWrapper.
 #include "../blobsyncbackendwrapper.h"
 
@@ -111,9 +111,11 @@ void TstRuntimeCardDavE2E::palm_to_carddav_propagates()
     QVERIFY(!specs.empty());
     auto carddavBackendOwned = std::move(specs.front().backend);
     QVERIFY(carddavBackendOwned);
-    auto *carddavSync = dynamic_cast<SyncBackendBase *>(carddavBackendOwned.get());
+    auto *carddavRaw = carddavBackendOwned.release();
+    auto *carddavSync = dynamic_cast<SyncBackendBase *>(carddavRaw);
     QVERIFY(carddavSync);
-    runtime.backendRegistry().registerBackendInstance(kCarddavBkId, carddavSync);
+    runtime.registerBackendInstanceForTest(
+        kCarddavBkId, std::unique_ptr<SyncBackendBase>(carddavSync));
 
     auto palmBlob = std::make_unique<MockBlobBackend>();
     {
@@ -174,9 +176,11 @@ void TstRuntimeCardDavE2E::carddav_to_palm_propagates()
     QVERIFY(!specs.empty());
     auto carddavBackendOwned = std::move(specs.front().backend);
     QVERIFY(carddavBackendOwned);
-    auto *carddavSync = dynamic_cast<SyncBackendBase *>(carddavBackendOwned.get());
+    auto *carddavRaw = carddavBackendOwned.release();
+    auto *carddavSync = dynamic_cast<SyncBackendBase *>(carddavRaw);
     QVERIFY(carddavSync);
-    runtime.backendRegistry().registerBackendInstance(kCarddavBkId, carddavSync);
+    runtime.registerBackendInstanceForTest(
+        kCarddavBkId, std::unique_ptr<SyncBackendBase>(carddavSync));
 
     auto palmBlobOwned = std::make_unique<MockBlobBackend>();
     MockBlobBackend *palmBlob = palmBlobOwned.get();

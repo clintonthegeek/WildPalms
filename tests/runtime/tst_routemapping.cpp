@@ -5,8 +5,8 @@
 #include "runtime/routemapping.h"
 #include "plugins/pimplugin.h"
 #include "palm/calendar/categorymappingstore.h"
-#include <synctypes.h>
-#include <syncbackendbase.h>   // complete type: StubConduit returns unique_ptr<SyncBackendBase>
+#include <kalburator/types/synctypes.h>
+#include <kalburator/sync/syncbackendbase.h>   // complete type: StubConduit returns unique_ptr<SyncBackendBase>
 
 using namespace WildPalms::Runtime;
 using Kalburator::Sync::SyncMapping;

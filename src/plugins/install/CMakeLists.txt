@@ -8,10 +8,6 @@ target_include_directories(wildpalms_install_v2_action
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src
 )
-target_include_directories(wildpalms_install_v2_action BEFORE
-    PRIVATE
-        $<TARGET_PROPERTY:Kalburator::Sync,INTERFACE_INCLUDE_DIRECTORIES>
-)
 target_link_libraries(wildpalms_install_v2_action
     PRIVATE
         WildPalmsCore

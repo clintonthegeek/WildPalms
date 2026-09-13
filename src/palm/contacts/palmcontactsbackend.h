@@ -1,7 +1,7 @@
 #ifndef WILDPALMS_PALM_CONTACTS_PALMCONTACTSBACKEND_H
 #define WILDPALMS_PALM_CONTACTS_PALMCONTACTSBACKEND_H
 
-#include "syncbackendbase.h"
+#include <kalburator/sync/syncbackendbase.h>
 
 namespace WildPalms::PalmSync {
 class IPalmDatabaseAccess;

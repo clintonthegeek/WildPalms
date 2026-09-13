@@ -10,7 +10,7 @@
 #include <QJsonDocument>
 #include <QDateTime>
 
-#include "backendconfiguration.h"
+#include <kalburator/typesupport/backendconfiguration.h>
 
 const QString Profile::DEFAULT_CONFLICT_POLICY = "ask";
 const QString Profile::DEFAULT_DEVICE_PATH = "/dev/ttyUSB0";

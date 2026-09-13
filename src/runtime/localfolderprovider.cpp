@@ -1,8 +1,8 @@
 #include "localfolderprovider.h"
 #include "localfolderconfigwidget.h"
 
-#include <markdownfilesbackend.h>
-#include <rawfilesbackend.h>
+#include <kalburator/universal/markdownfilesbackend.h>
+#include <kalburator/universal/rawfilesbackend.h>
 
 #include <QDir>
 #include <QFutureInterface>

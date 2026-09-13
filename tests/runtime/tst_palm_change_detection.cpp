@@ -5,7 +5,6 @@
 #include "palm/sync/palmrevisionstore.h"
 #include "palm/sync/palmchangedetection.h"
 #include "palmruntime.h"
-#include "synctypes.h"   // Kalburator::Sync::SyncResult (complete type for QList)
 
 using WildPalms::PalmSync::MockPalmDatabaseAccess;
 using WildPalms::PalmSync::PalmRecord;
@@ -28,7 +27,6 @@ private slots:
     void revisionStore_persistsAcrossInstances();
     void mixin_usesStoreAndHook();
     void mixin_noStoreIsSafe();
-    void loopDecision_cases();
 };
 
 void TestPalmChangeDetection::mockRevision_emptyForUnknownDb()
@@ -95,28 +93,6 @@ void TestPalmChangeDetection::mixin_noStoreIsSafe()
     QVERIFY(cd.cachedCollectionRevision("x").isEmpty());
     cd.primeRevisionCache({{"x", "3"}});           // no-op, must not crash
     QVERIFY(cd.cachedCollectionRevision("x").isEmpty());
-}
-
-void TestPalmChangeDetection::loopDecision_cases()
-{
-    using Kalburator::Sync::SyncResult;
-    using WildPalms::Runtime::shouldContinueSync;
-
-    auto changed = []{ SyncResult r; r.success = true; r.targetStats.created = 1; return r; };
-    auto quiet   = []{ SyncResult r; r.success = true; return r; };
-    auto failed  = []{ SyncResult r; r.success = false; return r; };
-    auto cancel  = []{ SyncResult r; r.cancelled = true; return r; };
-
-    // change on pass 1 (cap 3) -> continue
-    QVERIFY(shouldContinueSync(QList<SyncResult>{changed(), quiet()}, 1, 3));
-    // no change -> stop (fixpoint)
-    QVERIFY(!shouldContinueSync(QList<SyncResult>{quiet(), quiet()}, 1, 3));
-    // cap reached -> stop even with changes
-    QVERIFY(!shouldContinueSync(QList<SyncResult>{changed()}, 3, 3));
-    // failure -> stop
-    QVERIFY(!shouldContinueSync(QList<SyncResult>{changed(), failed()}, 1, 3));
-    // cancel -> stop
-    QVERIFY(!shouldContinueSync(QList<SyncResult>{changed(), cancel()}, 1, 3));
 }
 
 QTEST_MAIN(TestPalmChangeDetection)

@@ -1,5 +1,5 @@
 #include "kalburatorinteractiveconflicthandler.h"
-#include "conflictstore.h"
+#include <kalburator/conflict/conflictstore.h>
 #include "../conflictdialog.h"   // direct include — safe after qsynccore delete
 #include <QMetaObject>
 #include <QThread>

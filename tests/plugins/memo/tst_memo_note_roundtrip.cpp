@@ -8,13 +8,13 @@
 #include "palm/calendar/categorymappingstore.h"
 
 // libkalburator shape graph + note canon (via Kalburator::Sync)
-#include "shaperegistries.h"
-#include "transformationregistry.h"
-#include "shape.h"
-#include "pipeline.h"
-#include "lossprofile.h"
-#include "notedomaindefinition.h"
-#include "notestockshapes.h"
+#include <kalburator/shape/shaperegistries.h>
+#include <kalburator/shape/transformationregistry.h>
+#include <kalburator/shape/shape.h>
+#include <kalburator/shape/pipeline.h>
+#include <kalburator/shape/lossprofile.h>
+#include <kalburator/note/notedomaindefinition.h>
+#include <kalburator/note/notestockshapes.h>
 
 using namespace Kalburator::Shape;
 using WildPalms::Memo::NotePalmShapes;

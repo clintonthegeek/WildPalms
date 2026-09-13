@@ -37,14 +37,4 @@ target_link_libraries(WildPalmsPalmDevice
         WildPalmsPalmSync
 )
 
-# Phase E.16 — get Core's *include path* (KPilotLink, PilotRecord)
-# without LINKING to Core. As a STATIC archive, this lib's
-# unresolved Core symbols get resolved when consumers link both this
-# and Core into a SHARED lib or executable. This sidesteps the
-# Core <-> PalmDevice CMake cycle (CMake doesn't allow cycles
-# through SHARED targets).
-target_include_directories(WildPalmsPalmDevice PRIVATE
-    $<TARGET_PROPERTY:WildPalmsCore,INTERFACE_INCLUDE_DIRECTORIES>
-)
-
 set_target_properties(WildPalmsPalmDevice PROPERTIES POSITION_INDEPENDENT_CODE ON)

@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QString>
 
-#include <imassdeleteguard.h>
+#include <kalburator/engine/imassdeleteguard.h>
 
 class QWidget;
 

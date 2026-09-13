@@ -13,12 +13,12 @@
 #include "palm/sync/mockpalmdatabaseaccess.h"
 #include "palm/sync/palmrecord.h"
 #include "palm/calendar/datebookcodec.h"
-#include "mockblobbackend.h"
-#include "collectioninfo.h"
-#include "backendrecord.h"
-#include "backendregistry.h"
-#include "shape.h"
-#include <genericsqlitebackend.h>
+#include <kalburator/blob/mockblobbackend.h>
+#include <kalburator/types/collectioninfo.h>
+#include <kalburator/types/backendrecord.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/shape/shape.h>
+#include <kalburator/universal/genericsqlitebackend.h>
 
 #include "../blobsyncbackendwrapper.h"
 

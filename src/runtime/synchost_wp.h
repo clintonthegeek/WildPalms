@@ -4,7 +4,7 @@
 #include <QHash>
 #include <QString>
 
-#include <isynchost.h>
+#include <kalburator/calendar/isynchost.h>
 
 namespace Kalburator::Sync {
 class SyncBackend;

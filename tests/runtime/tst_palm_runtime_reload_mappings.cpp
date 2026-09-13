@@ -4,7 +4,7 @@
 #include <QJsonObject>
 
 #include "runtime/palmruntime.h"
-#include "synctypes.h"
+#include <kalburator/types/synctypes.h>
 
 class TstPalmRuntimeReloadMappings : public QObject
 {

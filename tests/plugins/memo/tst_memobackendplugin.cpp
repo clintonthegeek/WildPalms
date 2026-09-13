@@ -7,8 +7,8 @@
 #include "palm/codecs/memocodec.h"
 #include "runtime/palmdeviceaccess.h"
 
-#include "iblobbackend.h"
-#include "conflictrecord.h"   // Kalburator::Conflict::RecordSnapshot
+#include <kalburator/blob/iblobbackend.h>
+#include <kalburator/conflict/conflictrecord.h>   // Kalburator::Conflict::RecordSnapshot
 
 using WildPalms::Memo::MemoPlugin;
 using WildPalms::Memo::MemoBlobBackend;

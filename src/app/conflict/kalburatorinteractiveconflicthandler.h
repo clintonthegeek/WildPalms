@@ -1,7 +1,7 @@
 #ifndef KALBURATORINTERACTIVECONFLICTHANDLER_H
 #define KALBURATORINTERACTIVECONFLICTHANDLER_H
 
-#include "conflictpolicy.h"   // libkalburator's interface (conflict/ is on the include path)
+#include <kalburator/conflict/conflictpolicy.h>   // libkalburator's interface (conflict/ is on the include path)
 
 #include <QObject>
 #include <QPointer>

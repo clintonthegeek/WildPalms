@@ -1,7 +1,7 @@
 #ifndef WILDPALMS_PALMSYNC_PALMCHANGEDETECTION_H
 #define WILDPALMS_PALMSYNC_PALMCHANGEDETECTION_H
 
-#include "changedetection.h"          // Kalburator::Sync::ChangeDetection
+#include <kalburator/sync/changedetection.h>          // Kalburator::Sync::ChangeDetection
 #include "palmrevisionstore.h"
 #include <QMap>
 #include <QString>

@@ -5,12 +5,12 @@
 
 // libkalburator includes — bare names (libkalburator headers are on the
 // include path; matches the existing palmruntime.cpp include style).
-#include "providermanager.h"
-#include "iprovider.h"
-#include "backendregistry.h"
-#include "backendcontribution.h"
-#include "backendconfiguration.h"
-#include "collectioninfo.h"
+#include <kalburator/sync/providermanager.h>
+#include <kalburator/sync/iprovider.h>
+#include <kalburator/sync/backendregistry.h>
+#include <kalburator/sync/backendcontribution.h>
+#include <kalburator/typesupport/backendconfiguration.h>
+#include <kalburator/types/collectioninfo.h>
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -37,12 +37,20 @@ AccountController::AccountController(const QString &syncFolderPath,
     , m_registry(registry)
     , m_profile(profile)
     , m_palmRuntime(palmRuntime)
-    , m_providerManager(std::make_unique<ProviderManager>(registry, this))
 {
     Q_UNUSED(syncFolderPath)
     Q_ASSERT(m_registry);
     Q_ASSERT(m_profile);
     Q_ASSERT(m_palmRuntime);
+
+    m_runtimeProviders = m_palmRuntime->hasCollectionRuntime();
+    if (m_runtimeProviders)
+        loadAndConnect();
+    else
+        m_providerManager = std::make_unique<ProviderManager>(registry, this);
+
+    if (m_runtimeProviders)
+        return;
 
     QObject::connect(m_providerManager.get(), &ProviderManager::providersChanged,
             this, &AccountController::providersChanged);
@@ -79,6 +87,17 @@ AccountController::~AccountController()
 }
 
 void AccountController::loadAndConnect() {
+    if (m_runtimeProviders) {
+        auto future = m_palmRuntime->connectProviders();
+        auto *watcher = new QFutureWatcher<bool>(this);
+        connect(watcher, &QFutureWatcher<bool>::finished, this, [this, watcher]() {
+            watcher->deleteLater();
+            Q_EMIT providersChanged();
+            Q_EMIT accountsReady();
+        });
+        watcher->setFuture(future);
+        return;
+    }
     for (const auto &cfg : m_profile->accounts()) {
         BackendContribution *contribution = m_registry->contributionFor(cfg.type);
         if (!contribution) continue;
@@ -124,6 +143,14 @@ void AccountController::setProviderEnabled(const QString &providerId, bool enabl
     it->enabled = enabled;
     m_profile->saveAccount(*it);
 
+    if (m_runtimeProviders) {
+        QString error;
+        if (!m_palmRuntime->updateProvider(*it, error)) {
+            qWarning() << "[AccountController] provider update failed:" << error;
+            return;
+        }
+    }
+
     // Fan out to all mappings referencing this provider
     QJsonArray arr = m_profile->syncMappingsJson();
     const QString prefix = providerId + QLatin1Char(':');
@@ -148,6 +175,21 @@ void AccountController::setProviderEnabled(const QString &providerId, bool enabl
 QString AccountController::addProvider(const QString &kind,
                                        const BackendConfiguration &config) {
     if (m_palmRuntime->isRunning()) return QString();
+
+    if (m_runtimeProviders) {
+        BackendConfiguration cfg = config;
+        if (cfg.id.isEmpty())
+            cfg.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        cfg.type = kind;
+        QString error;
+        if (!m_palmRuntime->addProvider(cfg, error))
+            return {};
+        m_profile->saveAccount(cfg);
+        m_profile->save();
+        m_palmRuntime->connectProviders();
+        Q_EMIT providersChanged();
+        return cfg.id;
+    }
 
     BackendContribution *contribution = m_registry->contributionFor(kind);
     if (!contribution) return QString();
@@ -178,7 +220,14 @@ QString AccountController::addProvider(const QString &kind,
 
 bool AccountController::removeProvider(const QString &providerId) {
     if (m_palmRuntime->isRunning()) return false;
-    if (!m_providerManager->providerById(providerId)) return false;
+    if (m_runtimeProviders) {
+        const auto summaries = providerSummaries();
+        const auto found = std::find_if(summaries.cbegin(), summaries.cend(),
+                                        [&providerId](const auto &p) { return p.id == providerId; });
+        if (found == summaries.cend()) return false;
+    } else if (!m_providerManager->providerById(providerId)) {
+        return false;
+    }
 
     // Cascade-delete mappings.
     const QList<int> indices = mappingIndicesFor(providerId);
@@ -193,7 +242,13 @@ bool AccountController::removeProvider(const QString &providerId) {
         Q_EMIT mappingsChanged();
     }
 
-    m_providerManager->removeProvider(providerId);
+    if (m_runtimeProviders) {
+        QString error;
+        if (!m_palmRuntime->removeProvider(providerId, error))
+            return false;
+    } else {
+        m_providerManager->removeProvider(providerId);
+    }
     m_states.remove(providerId);
     m_lastErrors.remove(providerId);
 
@@ -203,20 +258,76 @@ bool AccountController::removeProvider(const QString &providerId) {
 }
 
 QList<IProvider*> AccountController::providers() const {
+    if (m_runtimeProviders)
+        return {};
     return m_providerManager->providers();
 }
 
+QList<AccountController::ProviderSummary> AccountController::providerSummaries() const
+{
+    if (!m_runtimeProviders) {
+        QList<ProviderSummary> out;
+        for (auto *provider : m_providerManager->providers()) {
+            ProviderSummary summary;
+            summary.id = provider->id();
+            summary.kind = provider->kind();
+            summary.displayName = provider->displayName();
+            summary.collections = provider->collections();
+            summary.state = stateFor(summary.id);
+            summary.errorMessage = errorFor(summary.id);
+            out.append(std::move(summary));
+        }
+        return out;
+    }
+    QList<ProviderSummary> out;
+    for (const auto &provider : m_palmRuntime->providerSnapshots()) {
+        ProviderSummary summary;
+        summary.id = provider.id;
+        summary.kind = provider.kind;
+        summary.displayName = provider.displayName;
+        summary.collections = provider.collections;
+        summary.errorMessage = provider.errorMessage;
+        switch (provider.state) {
+        case Kalburator::Sync::ProviderConnectionState::Connecting:
+            summary.state = ConnectionState::Connecting; break;
+        case Kalburator::Sync::ProviderConnectionState::Connected:
+            summary.state = ConnectionState::Connected; break;
+        case Kalburator::Sync::ProviderConnectionState::Error:
+            summary.state = ConnectionState::Error; break;
+        default:
+            summary.state = ConnectionState::Disconnected; break;
+        }
+        out.append(std::move(summary));
+    }
+    return out;
+}
+
 QList<CollectionInfo> AccountController::collectionsFor(const QString &id) const {
+    if (m_runtimeProviders) {
+        for (const auto &provider : providerSummaries())
+            if (provider.id == id) return provider.collections;
+        return {};
+    }
     if (auto *p = m_providerManager->providerById(id)) return p->collections();
     return {};
 }
 
 AccountController::ConnectionState
 AccountController::stateFor(const QString &id) const {
+    if (m_runtimeProviders) {
+        for (const auto &provider : providerSummaries())
+            if (provider.id == id) return provider.state;
+        return ConnectionState::Disconnected;
+    }
     return m_states.value(id, ConnectionState::Disconnected);
 }
 
 QString AccountController::errorFor(const QString &id) const {
+    if (m_runtimeProviders) {
+        for (const auto &provider : providerSummaries())
+            if (provider.id == id) return provider.errorMessage;
+        return {};
+    }
     return m_lastErrors.value(id);
 }
 

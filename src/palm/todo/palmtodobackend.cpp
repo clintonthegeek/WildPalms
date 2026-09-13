@@ -2,7 +2,7 @@
 
 #include <QCryptographicHash>
 
-#include "collectioninfo.h"
+#include <kalburator/types/collectioninfo.h>
 #include "ipalmdatabaseaccess.h"
 #include "palmrecord.h"
 
